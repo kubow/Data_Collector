@@ -10,8 +10,24 @@ import sys
 
 class ErrLog:
     """holds ASE/IQ errorlog in dict variable"""
-    def __init__(self):
-        self.server_name
+    def __init__(self, err_log=''):
+        self.content = {}
+        self.server_name = ''
+        if err_log:
+            timestamp, backup = '', ''
+            with open(err_log, 'r') as err_file:
+                for line in err_file:
+                    if timestamp:
+                        backup = timestamp
+                    line = line.strip().split(' ')
+                    try:
+                        timestamp = build_ts(line[0].split(':')[-1]+" "+line[1].split('.')[0])
+                        if backup and backup == timestamp:
+                            self.content[timestamp] += '\n'+' '.join(line[2:])
+                        else:
+                            self.content[timestamp] = ' '.join(line[2:])
+                    except:
+                        print(sys.exc_info()[0])
 
 
 class SysMon:
@@ -19,6 +35,7 @@ class SysMon:
     expects headered parameter - true writes columns and data - false just data"""
 
     def __init__(self, headered=False):
+        self.source = ''
         self.ts = ''  # date time value
         self.wh = headered  # with header data
         self.server_name = ''  # main data server name (###_DS, ###_BS, ...)
@@ -32,7 +49,8 @@ class SysMon:
 
     def load(self, filename):
         flag = {'subsection': False, 'next_line': False}
-        with open(file, 'r') as sysmon_file:
+        self.source = filename
+        with open(filename, 'r', encoding='utf-8') as sysmon_file:
             sec = Section()
             for line in sysmon_file:
                 line = line.strip()
@@ -41,7 +59,7 @@ class SysMon:
                 if '===' in line:  # this is section divider - re-init object
                     if self.counter['lines'] > 12:
                         if sec.finalize():
-                            sysmon.dict[sec.name[0]] = sec.stat  # backup to sysmon variable
+                            self.dict[sec.name[0]] = sec.stat  # backup to sysmon variable
                         self.counter['section_lines'] = 0
                         flag['subsection'] = False
                         sec = Section()
@@ -50,25 +68,24 @@ class SysMon:
                     self.counter['section_lines'] += 1  # secondary section counter in advance
                     if self.counter['lines'] == 1:
                         self.counter['lines'] += 1
-                        sysmon.report_name = line
-                    elif counter['lines'] < 14:
+                        self.report_name = line
+                    elif self.counter['lines'] < 14:
                         if 'Server Version' in line:
-                            sysmon.version = line.split('   ')[-1]
+                            self.version = line.split('   ')[-1]
                         elif 'Sampling Started' in line:
-                            sysmon.ts = build_ts(line.split('   ')[-1])
+                            self.ts = build_ts(line.split('   ')[-1])
                         elif 'Server Name' in line:
-                            sysmon.server_name = line.split('   ')[-1]
+                            self.server_name = line.split('   ')[-1]
                     else:
                         sec.content[self.counter['section_lines']] = {'line': [x.strip() for x in line.split('  ') if x]}
                     self.counter['lines'] += 1
-            
     
     def report(self, file_type='csv'):
         print('*********', self.report_name, '(', self.server_name, '@', self.ts, ')', '***********')
         omit_sections = ['Worker Process Management', 'Task Management', 'Transaction Profile']
         if file_type == 'csv':
             # TODO: not always same count of columns, need to sort out!
-            with open(os.path.join(directory, 'report.csv'), 'a', newline='') as file:
+            with open(os.path.join(self.source, 'report.csv'), 'a', newline='') as file:
                 cswrt = csv.writer(file, delimiter=';')
                 if self.wh:
                     header = ['timestamp', ]
@@ -191,13 +208,11 @@ class Section:
 
 def build_ts(value=None):
     # build timestamp value from a given value
-    if value:
-        try:
+    try:
+        if '/' in value:
+            return datetime.strptime(value, '%Y/%m/%d %H:%M:%S')
+        else:
             return datetime.strptime(value, '%b %d, %Y %H:%M:%S')
-        except:
-            print(sys.exc_info()[0])
-            return None
-    else:
+    except:
+        print(sys.exc_info()[0])
         return None
-
-
