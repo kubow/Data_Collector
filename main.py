@@ -24,7 +24,7 @@ except ImportError:
     can_graph = False
 
 from ASE_Content import SysMon, ErrLog  # , ResultSet
-
+#from ToolTip import ToolTip
 
 class MainWindow:
     def __init__(self, master):
@@ -78,8 +78,10 @@ class MainWindow:
         self.form['content'] = ttk.Treeview(master, show='headings', selectmode='browse', height=4)
         self.form['content'].grid(row=2, column=0, columnspan=7, rowspan=3)
 
-        self.form['content'].bind("<Return>", lambda e: self.on_select())
-
+        # self.form['content'].bind("<Return>", lambda e: self.on_select)
+        # self.form['content'].bind("<Double-1>", self.on_select)
+        self.form['content'].bind("<<TreeViewSelect>>", self.on_select)
+        # ToolTip(widget = self.form['content'], text = "Hover text!")
         # ===================== (Comment line)
         self.active_sel['stats'] = tk.Label(self.master, text='Total : {0} records'.format(self.active_sel['count']))
         self.active_sel['stats'].grid(row=5, column=0, columnspan=7, sticky='w')
@@ -149,10 +151,11 @@ class MainWindow:
 
     def on_select(self, evt):
         w = evt.widget
-        if w == self.contacts_list:  # click in contact list
-            if w.curselection():
-                index = int(w.curselection()[0])
-                value = int(w.get(index).split('.')[0])
+        if w == self.form['content']:  # click in content box
+            if w.selection():
+                index = w.selection()[0]
+                print(dir(w))
+                print('you clicked', w.item(index)["text"])
                 self.active_sel['index'] = value
                 # TODO: need to change a lot more
         self.refresh()
@@ -199,7 +202,7 @@ class MainWindow:
     def quit(self):
         self.master.destroy()
 
-    
+
 def data_collector():
     root = tk.Tk()
     root.title('SYBASE Collector')
@@ -214,8 +217,8 @@ def data_collector():
     root.columnconfigure(6, weight=1)
     root.rowconfigure(0, weight=1)
     root.rowconfigure(1, weight=1)
-    root.rowconfigure(2, weight=1)
-    root.rowconfigure(3, weight=3)
+    root.rowconfigure(2, weight=2)
+    root.rowconfigure(3, weight=6)
     root.rowconfigure(4, weight=1)
     MainWindow(root)
     root['bg'] = '#49A'

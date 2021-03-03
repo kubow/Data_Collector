@@ -3,6 +3,7 @@ from datetime import datetime
 import os.path
 import csv
 import sys
+from pandas import read_csv, read_fwf
 
 
 # import sqlite3
@@ -30,10 +31,39 @@ class ErrLog:
                         print(sys.exc_info()[0])
 
 
+class ResultSet:
+    """universal loader for text files using pandas dataframes
+    %filename: full path to exported resultset
+    %sep: fields sparator (default is >,<)
+    """
+    def __init__(self, filename='', sep=','):
+        if filename:
+            self.file_size = os.path.getsize(filename)
+            self.file_name = os.path.basename(filename)
+            self.path = os.path.abspath(filename)
+            if any(chr.isdigit() for chr in self.file_name.split('.')[0]):
+                # SQL anywhere specific ? Must be more conditions
+                self.time_stamp = build_ts(self.file_name.split('.')[0])
+                self.data_frame = read_csv(filename, sep=sep, header=None, quotechar="'")
+                self.data_frame.iloc[0] = self.time_stamp
+                self.data_frame = self.data_frame.transpose()
+            else:
+                self.data_frame = read_fwf(filename)
+            
+    def write_csv(self, csv=''):
+        if csv:
+            if os.path.isfile(csv):
+                self.data_frame.tail(1).to_csv(csv, mode='a', encoding='utf-8', header=False)
+            else:
+                self.data_frame.tail(3).head(1).to_csv(csv, mode='w', encoding='utf-8', header=False)
+                self.data_frame.tail(1).to_csv(csv, mode='a', encoding='utf-8', header=False)
+        else:
+            self.data_frame.to_csv(self.file_name+'.csv', mode='w', encoding='utf-8')
+
+
 class SysMon:
     """holds all symon sections in dict variable
     expects headered parameter - true writes columns and data - false just data"""
-
     def __init__(self, headered=False):
         self.source = ''
         self.ts = ''  # date time value
@@ -211,8 +241,13 @@ def build_ts(value=None):
     try:
         if '/' in value:
             return datetime.strptime(value, '%Y/%m/%d %H:%M:%S')
+        elif '_' in value:
+            if len(value.split('_')) > 2:
+                return datetime.strptime(('_').join(value.split('_')[-2:]), '%Y%m%d_%H%M')
+            else:
+                return datetime.strptime(value, '%Y%m%d_%H%M')
         else:
             return datetime.strptime(value, '%b %d, %Y %H:%M:%S')
     except:
-        print(sys.exc_info()[0])
+        print(sys.exc_info()[1])
         return None
