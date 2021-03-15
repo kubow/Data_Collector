@@ -12,7 +12,7 @@ from pandas import read_csv, read_fwf
 class ErrLog:
     """holds ASE/IQ errorlog in dict variable"""
     def __init__(self, err_log=''):
-        self.content = {}
+        self.dic = {}
         self.server_name = ''
         if err_log:
             timestamp, backup = '', ''
@@ -24,9 +24,9 @@ class ErrLog:
                     try:
                         timestamp = build_ts(line[0].split(':')[-1]+" "+line[1].split('.')[0])
                         if backup and backup == timestamp:
-                            self.content[timestamp] += '\n'+' '.join(line[2:])
+                            self.dic[timestamp] += '\n'+' '.join(line[2:])
                         else:
-                            self.content[timestamp] = ' '.join(line[2:])
+                            self.dic[timestamp] = ' '.join(line[2:])
                     except:
                         print(sys.exc_info()[0])
 
@@ -42,7 +42,7 @@ class ResultSet:
             self.file_name = os.path.basename(filename)
             self.path = os.path.abspath(filename)
             if any(chr.isdigit() for chr in self.file_name.split('.')[0]):
-                # SQL anywhere specific ? Must be more conditions
+                # TODO: SQL Anywhere specific ? Must be more conditions
                 self.time_stamp = build_ts(self.file_name.split('.')[0])
                 self.data_frame = read_csv(filename, sep=sep, header=None, quotechar="'")
                 self.data_frame.iloc[0] = self.time_stamp
@@ -52,7 +52,7 @@ class ResultSet:
             
     def write_csv(self, csv=''):
         if csv:
-            if os.path.isfile(csv):
+            if os.path.isfile(csv):  # do not append header in case file exist
                 self.data_frame.tail(1).to_csv(csv, mode='a', encoding='utf-8', header=False)
             else:
                 self.data_frame.tail(3).head(1).to_csv(csv, mode='w', encoding='utf-8', header=False)
@@ -72,7 +72,7 @@ class SysMon:
         self.report_name = ''  # ### System Performance Report
         self.version = ''  # ###/(16.X, 15.X, ...)
         self.counter = {'columns': 0, 'items': 0, 'internal': 0, 'lines': 0, 'section_lines': 0}
-        self.dict = {}
+        self.dic = {}
         self.valid = ['Kernel Utilization', 'Worker Process Management', 'Parallel Query Management', 'Task Management',
                       'Application Management', 'Transaction Profile', 'Transaction Management', 'Lock Management',
                       'Data Cache Management', 'NV Cache Management', 'Disk I/O Management', 'Network I/O Management']
@@ -89,7 +89,7 @@ class SysMon:
                 if '===' in line:  # this is section divider - re-init object
                     if self.counter['lines'] > 12:
                         if sec.finalize():
-                            self.dict[sec.name[0]] = sec.stat  # backup to sysmon variable
+                            self.dic[sec.name[0]] = sec.stat  # backup to sysmon variable
                         self.counter['section_lines'] = 0
                         flag['subsection'] = False
                         sec = Section()
@@ -119,7 +119,7 @@ class SysMon:
                 cswrt = csv.writer(file, delimiter=';')
                 if self.wh:
                     header = ['timestamp', ]
-                    for section, stats in self.dict.items():  # column name reporter
+                    for section, stats in self.dic.items():  # column name reporter
                         if not any(s in section for s in omit_sections):
                             for statistic, stat_detail in stats.items():
                                 self.counter['items'] = 1
@@ -130,7 +130,7 @@ class SysMon:
                     self.counter['columns'] = len(header)
                     cswrt.writerow(header)
                 data = [self.ts, ]
-                for section, stats in self.dict.items():
+                for section, stats in self.dic.items():
                     if not any(s in section for s in omit_sections):
                         for statistic, stat_detail in stats.items():
                             self.counter['items'] = 1
@@ -142,14 +142,14 @@ class SysMon:
                 cswrt.writerow(data)
         elif file_type == 'json':
             # this is desired structure: [{'date': 'YYYY-mm-dd HH:MM:SS', 'var1': 'var1', ...}, {...}, ...]
-            with open(os.path.join(directory, 'report.json'), 'a') as stream:
+            with open(os.path.join(self.source, 'report.json'), 'a') as stream:
                 self.counter['items'] = 1
                 item = '"{0}": "{1}"'
                 if self.counter['items'] > 2:
                     stream.write('}}, {{' + item.format('date', self.ts))
                 else:
                     stream.write('[{{' + item.format('date', self.ts))
-                for section, stats in self.dict.items():
+                for section, stats in self.dic.items():
                     if not any(s in section for s in omit_sections):
                         for statistic, stat_detail in stats.items():
                             self.counter['internal'] = 1

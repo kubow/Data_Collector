@@ -24,7 +24,8 @@ except ImportError:
     can_graph = False
 
 from ASE_Content import SysMon, ErrLog  # , ResultSet
-#from ToolTip import ToolTip
+# from ToolTip import ToolTip
+
 
 class MainWindow:
     def __init__(self, master):
@@ -43,22 +44,22 @@ class MainWindow:
         self.btn = {}
         self.curr_loc = ''
         self.form = {}
-        self.mode = tk.IntVar(value=0)  # errorlog value active
+        self.mode = tk.IntVar(value=0)  # error log value active
         self.mode_opts = {}
-        self.content = {}
+        self.content = {}  # this is main content in the form (searchable and exportable)
         
         # ===================== (Main Menu + controls)
         self.active_sel['location'] = tk.Label(self.master, text='Location : {0}'.format(self.curr_loc))
-        self.mode_opts['mode1'] = tk.Radiobutton(self.master, text='ASE Errorlog viewer', value=0, variable=self.mode, command=self.sm)
+        self.mode_opts['mode1'] = tk.Radiobutton(self.master, text='ASE/IQ/ASA Errorlog viewer', value=0, variable=self.mode, command=self.sm)
         self.mode_opts['mode2'] = tk.Radiobutton(self.master, text='ASE Sysmon file viewer', value=1, variable=self.mode, command=self.sm)
         self.mode_opts['mode3'] = tk.Radiobutton(self.master, text='ASE Sysmon directory viewer', value=2, variable=self.mode, command=self.sm)
-        self.mode_opts['mode4'] = tk.Radiobutton(self.master, text='ASE Resultset viewer', value=3, variable=self.mode, command=self.sm)
+        self.mode_opts['mode4'] = tk.Radiobutton(self.master, text='ASE/IQ/ASA Resultset viewer', value=3, variable=self.mode, command=self.sm)
         
-        self.active_sel['location'].grid(row=0, column=0, columnspan=2, sticky='w')
-        self.mode_opts['mode1'].grid(row=0, column=2)
-        self.mode_opts['mode2'].grid(row=0, column=3)
-        self.mode_opts['mode3'].grid(row=0, column=4)
-        self.mode_opts['mode4'].grid(row=0, column=5)
+        self.active_sel['location'].grid(row=0, column=0, columnspan=3, sticky='we')
+        self.mode_opts['mode1'].grid(row=0, column=3)
+        self.mode_opts['mode2'].grid(row=0, column=4)
+        self.mode_opts['mode3'].grid(row=0, column=5)
+        self.mode_opts['mode4'].grid(row=0, column=6)
         
         # ===================== (Button Menu)
         self.btn['open'] = tk.Button(self.master, text='open', command=self.sm)
@@ -76,7 +77,7 @@ class MainWindow:
 
         # ===================== (Fields list)
         self.form['content'] = ttk.Treeview(master, show='headings', selectmode='browse', height=4)
-        self.form['content'].grid(row=2, column=0, columnspan=7, rowspan=3)
+        self.form['content'].grid(row=2, column=0, columnspan=7, rowspan=11, sticky='nsew')
 
         # self.form['content'].bind("<Return>", lambda e: self.on_select)
         # self.form['content'].bind("<Double-1>", self.on_select)
@@ -84,7 +85,7 @@ class MainWindow:
         # ToolTip(widget = self.form['content'], text = "Hover text!")
         # ===================== (Comment line)
         self.active_sel['stats'] = tk.Label(self.master, text='Total : {0} records'.format(self.active_sel['count']))
-        self.active_sel['stats'].grid(row=5, column=0, columnspan=7, sticky='w')
+        self.active_sel['stats'].grid(row=14, column=0, columnspan=7, sticky='we')
         self.refresh()
         
     def sm(self):
@@ -128,7 +129,7 @@ class MainWindow:
                 filename = self.content.source.split('/')[-1]
                 self.form['content'].heading("measured", text='Measured value @' + filename, anchor='center')
                 self.form['content'].column("measured", stretch="yes")
-                for section, reported in self.content.dict.items():
+                for section, reported in self.content.dic.items():
                     for stat, sub in reported.items():
                         i = 0
                         definition = ''
@@ -144,7 +145,7 @@ class MainWindow:
                 self.form['content']['columns'] = ('time', 'logged')
                 self.form['content'].heading("time", text='Log Time', anchor='w')
                 self.form['content'].column("time", stretch="no")
-                self.form['content'].heading("logged", text='Message', anchor='center')
+                self.form['content'].heading("logged", text='Message', anchor='ne')
                 self.form['content'].column("logged", stretch="yes")
                 for timestamp, row in self.content.items():
                     self.form['content'].insert("", "end", values=[timestamp, row])
@@ -156,24 +157,24 @@ class MainWindow:
                 index = w.selection()[0]
                 print(dir(w))
                 print('you clicked', w.item(index)["text"])
-                self.active_sel['index'] = value
+                self.active_sel['index'] = w.item(index)["text"]
                 # TODO: need to change a lot more
         self.refresh()
 
     def prev(self):
-        if self.contacts_lib:
+        if self.content:
             if self.active_sel['index'] > 1:
                 self.active_sel['index'] -= 1
 
     def next(self):
-        if self.contacts_lib:
-            if self.active_sel['index'] < len(self.contacts_lib.dic):
+        if self.content:
+            if self.active_sel['index'] < len(self.content.dic):
                 self.active_sel['index'] += 1
 
     def control(self):
-        if (self.contacts_list.curselection()[0]+1) < len(self.contacts_lib.dic):
-            self.active_sel['contact'] = self.contacts_lib.dic[int(self.active_sel['index'])]['FN']
-            self.active_sel['number'] = self.contacts_lib.dic[int(self.active_sel['index'])]['TEL']
+        if (self.contacts_list.curselection()[0]+1) < len(self.content.dic):
+            self.active_sel['contact'] = self.content.dic[int(self.active_sel['index'])]['FN']
+            self.active_sel['number'] = self.content.dic[int(self.active_sel['index'])]['TEL']
             self.form['f1_inp'].delete(0, 'end')
             self.form['f2_inp'].delete(0, 'end')
             self.form['f1_inp'].insert(20, self.active_sel['contact'])
@@ -188,16 +189,16 @@ class MainWindow:
             # self.contacts_list.event_generate("<<ListboxSelect>>")
 
     def export(self):
-        if self.contacts_lib:
+        if self.content:
             if self.mode.get():  # file mode, export to directory
                 final_loc = dialog.askdirectory()
             else:
                 final_loc = dialog.asksaveasfile(mode='w', defaultextension=".txt")
             if self.curr_loc != final_loc and final_loc:
                 if self.mode.get():
-                    self.contacts_lib.dic.export(final_loc)
+                    self.content.dic.export(final_loc)
                 else:
-                    self.contacts_lib.dic.merge(final_loc)
+                    self.content.dic.merge(final_loc)
 
     def quit(self):
         self.master.destroy()
@@ -206,7 +207,7 @@ class MainWindow:
 def data_collector():
     root = tk.Tk()
     root.title('SYBASE Collector')
-    root.resizable(7, 5)
+    root.resizable(7, 15)
     # root.geometry('1200x900')
     root.columnconfigure(0, weight=2)
     root.columnconfigure(1, weight=1)
