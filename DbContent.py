@@ -10,11 +10,21 @@ from pandas import read_csv, read_fwf
 # import matplotlib.pyplot as mplt
 
 class ErrLog:
-    """holds ASE/IQ errorlog in dict variable"""
+    """ASE/IQ(TODO: MSSQL,PgSQL,MySQL) errorlog holder
+    %err_log: path to the errorlog file
+    output is aggregated by timestamps:
+    # dic[key]: date-time stamp
+    # dic[value]: multi-line connected in one string
+    # application_type: TODO: sniff type of errorlog file
+    # server_name: TODO: sniff running server name
+    # license: TODO: sniff type of license and number of cores/seats"""
     def __init__(self, err_log=''):
+        self.application_type = ''
         self.dic = {}
+        self.extensions = ('.txt', '.log', '.err')
+        self.license = ''
         self.server_name = ''
-        if err_log:
+        if err_log and any(ext in err_log for ext in self.extensions):
             timestamp, backup = '', ''
             with open(err_log, 'r') as err_file:
                 for line in err_file:
@@ -27,8 +37,12 @@ class ErrLog:
                             self.dic[timestamp] += '\n'+' '.join(line[2:])
                         else:
                             self.dic[timestamp] = ' '.join(line[2:])
+                    except IndexError:
+                        self.dic[timestamp] += '\n'+' '.join(line)  # this case appending to content
                     except:
-                        print(sys.exc_info()[0])
+                        print(sys.exc_info()[0])  # exception add out of index
+        else:
+            print('not an error log file:', err_log)
 
 
 class ResultSet:
@@ -49,6 +63,8 @@ class ResultSet:
                 self.data_frame = self.data_frame.transpose()
             else:
                 self.data_frame = read_fwf(filename)
+        else:
+            print('please provide a path to result set file')
             
     def write_csv(self, csv=''):
         if csv:
@@ -246,8 +262,10 @@ def build_ts(value=None):
                 return datetime.strptime(('_').join(value.split('_')[-2:]), '%Y%m%d_%H%M')
             else:
                 return datetime.strptime(value, '%Y%m%d_%H%M')
+        elif '-' in value:
+            return datetime.strptime(value, '%Y-%m-%d %H:%M:%S')
         else:
             return datetime.strptime(value, '%b %d, %Y %H:%M:%S')
     except:
-        print(sys.exc_info()[1])
+        # print(sys.exc_info()[1])
         return None

@@ -23,57 +23,59 @@ except ImportError:
     print('no graphing')
     can_graph = False
 
-from ASE_Content import SysMon, ErrLog  # , ResultSet
+from DbContent import SysMon, ErrLog  # , ResultSet
 # from ToolTip import ToolTip
 
 
 class MainWindow:
     def __init__(self, master):
         self.master = master
-        self.active_sel = {
-            'contact': '',
-            'count': '',
+        self.active = {
+            'apply': '',  # applied filter
+            'filter': tk.StringVar(value=''),  # filter mode
             'index': 0,
             'location': '',
-            'name': '',
-            'number': '',
-            'stats': '',
-            'various': ''
+            'mode': tk.IntVar(value=0),  # main mode: error log value active
+            'records': 0,  # total record count
+            'stats': '',  # bottom line information label
         }
-        self.await_load = False
-        self.btn = {}
-        self.curr_loc = ''
-        self.form = {}
-        self.mode = tk.IntVar(value=0)  # error log value active
-        self.mode_opts = {}
+        self.await_load = False  # flag for preparing content
+        self.btn = {}  # collection of buttons (one fake is input field)
+        self.form = {}  # collection of main content
+        self.mode_opts = {}  # collection of radio buttons
         self.content = {}  # this is main content in the form (searchable and exportable)
+        self.original = {}
+        # self.active['filter'].trace('w', self.filter)  # bind filter input with callback 
         
         # ===================== (Main Menu + controls)
-        self.active_sel['location'] = tk.Label(self.master, text='Location : {0}'.format(self.curr_loc))
-        self.mode_opts['mode1'] = tk.Radiobutton(self.master, text='ASE/IQ/ASA Errorlog viewer', value=0, variable=self.mode, command=self.sm)
-        self.mode_opts['mode2'] = tk.Radiobutton(self.master, text='ASE Sysmon file viewer', value=1, variable=self.mode, command=self.sm)
-        self.mode_opts['mode3'] = tk.Radiobutton(self.master, text='ASE Sysmon directory viewer', value=2, variable=self.mode, command=self.sm)
-        self.mode_opts['mode4'] = tk.Radiobutton(self.master, text='ASE/IQ/ASA Resultset viewer', value=3, variable=self.mode, command=self.sm)
+        self.form['location'] = tk.Label(self.master, text='Location : {0}'.format(self.active['location']))
+        self.mode_opts['mode1'] = tk.Radiobutton(self.master, text='ASE/IQ/ASA Errorlog viewer', value=0, variable=self.active['mode'], command=self.sm)
+        self.mode_opts['mode2'] = tk.Radiobutton(self.master, text='ASE Sysmon file viewer', value=1, variable=self.active['mode'], command=self.sm)
+        self.mode_opts['mode3'] = tk.Radiobutton(self.master, text='ASE Sysmon directory viewer', value=2, variable=self.active['mode'], command=self.sm)
+        self.mode_opts['mode4'] = tk.Radiobutton(self.master, text='ASE/IQ/ASA Resultset viewer', value=3, variable=self.active['mode'], command=self.sm)
         
-        self.active_sel['location'].grid(row=0, column=0, columnspan=3, sticky='we')
+        self.form['location'].grid(row=0, column=0, columnspan=3, sticky='we')
         self.mode_opts['mode1'].grid(row=0, column=3)
         self.mode_opts['mode2'].grid(row=0, column=4)
         self.mode_opts['mode3'].grid(row=0, column=5)
         self.mode_opts['mode4'].grid(row=0, column=6)
         
         # ===================== (Button Menu)
+        self.btn['inpt'] = tk.Entry(self.master, width=1, textvariable=self.active['filter'])
         self.btn['open'] = tk.Button(self.master, text='open', command=self.sm)
         self.btn['expt'] = tk.Button(self.master, text='export', command=self.export)
         self.btn['prev'] = tk.Button(self.master, text='<', command=self.prev)
         self.btn['save'] = tk.Button(self.master, text='save')  # editing not yet implemented
         self.btn['next'] = tk.Button(self.master, text='>', command=self.next)
         self.btn['exit'] = tk.Button(self.master, text='quit', command=self.quit)
+        self.btn['inpt'].grid(row=1, column=0, pady=5, sticky='nsew')
         self.btn['open'].grid(row=1, column=1, pady=5, sticky='nsew')
         self.btn['expt'].grid(row=1, column=2, pady=5, sticky='nsew')
         self.btn['prev'].grid(row=1, column=3, pady=5, sticky='nsew')
         self.btn['save'].grid(row=1, column=4, pady=5, sticky='nsew')
         self.btn['next'].grid(row=1, column=5, pady=5, sticky='nsew')
         self.btn['exit'].grid(row=1, column=6, pady=5, sticky='nsew')
+        self.btn['inpt'].bind('<Key>',self.on_select)
 
         # ===================== (Fields list)
         self.form['content'] = ttk.Treeview(master, show='headings', selectmode='browse', height=4)
@@ -84,42 +86,42 @@ class MainWindow:
         self.form['content'].bind("<<TreeViewSelect>>", self.on_select)
         # ToolTip(widget = self.form['content'], text = "Hover text!")
         # ===================== (Comment line)
-        self.active_sel['stats'] = tk.Label(self.master, text='Total : {0} records'.format(self.active_sel['count']))
-        self.active_sel['stats'].grid(row=14, column=0, columnspan=7, sticky='we')
+        self.active['stats'] = tk.Label(self.master, text='Total : {0} records'.format(str(self.active['records'])))
+        self.active['stats'].grid(row=14, column=0, columnspan=7, sticky='we')
         self.refresh()
         
     def sm(self):
-        backup = self.curr_loc
-        if self.mode.get() == 2:
-            self.curr_loc = dialog.askdirectory()
+        backup = self.active['location']
+        if self.active['mode'].get() == 2:
+            self.active['location'] = dialog.askdirectory()
         else:
-            self.curr_loc = dialog.askopenfilename()
-        if self.curr_loc:
+            self.active['location'] = dialog.askopenfilename()
+        if self.active['location']:
             self.await_load = True
         else:
             if backup:
-                self.curr_loc = backup  # reverting to previous value
+                self.active['location'] = backup  # reverting to previous value
         self.refresh()            
 
     def refresh(self):
         if self.await_load:
             self.form['content'].delete(*self.form['content'].get_children())
-            if self.mode.get() == 3:
+            if self.active['mode'].get() == 3:
                 print('will join')
-            elif self.mode.get() == 2:
+            elif self.active['mode'].get() == 2:
                 no_files = 0
-                for dir_path, dir_names, file_names in os.walk(os.path.abspath(self.curr_loc)):
+                for dir_path, dir_names, file_names in os.walk(os.path.abspath(self.active['location'])):
                     for current in file_names:
-                        self.content = SysMon()
+                        self.load_content(SysMon())
                         self.content.load(os.path.join(dir_path, current))
                         # self.content.report()
                         no_files += 1
                         print('processed', current)  # represents just one row in csv
                 print('Processed', no_files, 'files...')
-            elif self.mode.get() == 1:
+            elif self.active['mode'].get() == 1:
                 self.form['content']['columns'] = ('section', 'statistic', 'current', 'measured')
-                self.content = SysMon()
-                self.content.load(self.curr_loc)
+                self.load_content(SysMon())
+                self.content.load(self.active['location'])
                 self.form['content'].heading("section", text='Main section', anchor='w')
                 self.form['content'].column("section", stretch="no")
                 self.form['content'].heading("statistic", text='Main statistic', anchor='center')
@@ -140,8 +142,8 @@ class MainWindow:
                                 continue
                             self.form['content'].insert("", "end", values=[section, stat, definition + ' ' + key, measured])
                             i += 1
-            elif self.mode.get() == 0:
-                self.content = ErrLog(self.curr_loc).content
+            elif self.active['mode'].get() == 0:
+                self.load_content(ErrLog(self.active['location']).dic)
                 self.form['content']['columns'] = ('time', 'logged')
                 self.form['content'].heading("time", text='Log Time', anchor='w')
                 self.form['content'].column("time", stretch="no")
@@ -150,6 +152,23 @@ class MainWindow:
                 for timestamp, row in self.content.items():
                     self.form['content'].insert("", "end", values=[timestamp, row])
 
+    def load_content(self, object_content):
+        if object_content:
+            self.content = object_content
+            self.original = {}
+
+    def filter(self, value):
+        if value != self.active['apply']:
+            print('limit result set with', value, '/ previous value was', self.active['apply'])
+            self.active['apply'] = value
+            if not self.original:
+                self.original = self.content
+            else:
+                self.content = self.original
+            for entry, content in self.content:
+                if not value in entry or not value in content:
+                    self.content.pop(entry)
+
     def on_select(self, evt):
         w = evt.widget
         if w == self.form['content']:  # click in content box
@@ -157,45 +176,45 @@ class MainWindow:
                 index = w.selection()[0]
                 print(dir(w))
                 print('you clicked', w.item(index)["text"])
-                self.active_sel['index'] = w.item(index)["text"]
+                self.active['index'] = w.item(index)["text"]
                 # TODO: need to change a lot more
+        elif w == self.btn['inpt']:  # type in the input box
+            if self.btn['inpt'].get():
+                self.master.after(1000,lambda: self.filter(self.btn['inpt'].get()))
         self.refresh()
 
     def prev(self):
         if self.content:
-            if self.active_sel['index'] > 1:
-                self.active_sel['index'] -= 1
+            if self.active['index'] > 1:
+                self.active['index'] -= 1
 
     def next(self):
         if self.content:
-            if self.active_sel['index'] < len(self.content.dic):
-                self.active_sel['index'] += 1
+            if self.active['index'] < len(self.content.dic):
+                self.active['index'] += 1
 
     def control(self):
         if (self.contacts_list.curselection()[0]+1) < len(self.content.dic):
-            self.active_sel['contact'] = self.content.dic[int(self.active_sel['index'])]['FN']
-            self.active_sel['number'] = self.content.dic[int(self.active_sel['index'])]['TEL']
+
             self.form['f1_inp'].delete(0, 'end')
             self.form['f2_inp'].delete(0, 'end')
-            self.form['f1_inp'].insert(20, self.active_sel['contact'])
-            self.form['f2_inp'].insert(20, self.active_sel['number'])
-            print('Setting', str(self.contacts_list.curselection()[0]+1), '>', str(self.active_sel['index']), 'record')
+            print('Setting', str(self.contacts_list.curselection()[0]+1), '>', str(self.active['index']), 'record')
             self.contacts_list.selection_clear(0, "end")
-            self.contacts_list.selection_set(int(self.active_sel['index'])-1)
-            self.contacts_list.see(int(self.active_sel['index'])-1)
-            self.contacts_list.activate(int(self.active_sel['index'])-1)
-            self.contacts_list.selection_anchor(int(self.active_sel['index'])-1)
-            # self.contacts_list.select_set(int(self.active_sel['index'])-1)
+            self.contacts_list.selection_set(int(self.active['index'])-1)
+            self.contacts_list.see(int(self.active['index'])-1)
+            self.contacts_list.activate(int(self.active['index'])-1)
+            self.contacts_list.selection_anchor(int(self.active['index'])-1)
+            # self.contacts_list.select_set(int(self.active['index'])-1)
             # self.contacts_list.event_generate("<<ListboxSelect>>")
 
     def export(self):
         if self.content:
-            if self.mode.get():  # file mode, export to directory
+            if self.active['mode'].get():  # file mode, export to directory
                 final_loc = dialog.askdirectory()
             else:
                 final_loc = dialog.asksaveasfile(mode='w', defaultextension=".txt")
-            if self.curr_loc != final_loc and final_loc:
-                if self.mode.get():
+            if self.active['location'] != final_loc and final_loc:
+                if self.active['mode'].get():
                     self.content.dic.export(final_loc)
                 else:
                     self.content.dic.merge(final_loc)

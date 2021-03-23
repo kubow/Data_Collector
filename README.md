@@ -1,5 +1,7 @@
 # Sybase Collector
+
 python tkinter GUI for interacting with Sybase (ASE, IQ) and its data
+It will be universal in the future.
 
 ## Dependencies
 
