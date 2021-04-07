@@ -1,9 +1,12 @@
-from os import walk
+import csv
 from datetime import datetime
 import os.path
-import csv
+from os import walk
 import sys
-from pandas import read_csv, read_fwf
+try:
+    from pandas import read_csv, read_fwf
+except ImportError:
+    print('... pandas library not found, cannot read csv')
 
 
 # import sqlite3

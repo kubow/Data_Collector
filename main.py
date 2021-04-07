@@ -7,20 +7,20 @@ try:
     import Tkinter as tk
     import Tkinter.filedialog as dialog
     import Tkinter.ttk as ttk
-    print('using big tkinter (linux way)')
+    print('... using big tkinter (linux way)')
 except ImportError:
     import tkinter as tk
     import tkinter.filedialog as dialog
     import tkinter.ttk as ttk
-    print('using small tkinter (windows way)')
+    print('... using small tkinter (windows way)')
 
 # Matplotlib for viewing
 try:
     import matplotlib.pyplot as plt
-    print('graphing can be done')
+    print('... matplotlib imported, graphing can be done')
     can_graph = True
 except ImportError:
-    print('no graphing')
+    print('... matplotlib not found, no graphing')
     can_graph = False
 
 from DbContent import SysMon, ErrLog  # , ResultSet
@@ -47,7 +47,7 @@ class MainWindow:
         self.original = {}
         # self.active['filter'].trace('w', self.filter)  # bind filter input with callback 
         
-        # ===================== (Main Menu + controls)
+        # ===================== (Main Menu + controls) same for every layout
         self.form['location'] = tk.Label(self.master, text='Location : {0}'.format(self.active['location']))
         self.mode_opts['mode1'] = tk.Radiobutton(self.master, text='ASE/IQ/ASA Errorlog viewer', value=0, variable=self.active['mode'], command=self.sm)
         self.mode_opts['mode2'] = tk.Radiobutton(self.master, text='ASE Sysmon file viewer', value=1, variable=self.active['mode'], command=self.sm)
@@ -60,7 +60,7 @@ class MainWindow:
         self.mode_opts['mode3'].grid(row=0, column=5)
         self.mode_opts['mode4'].grid(row=0, column=6)
         
-        # ===================== (Button Menu)
+        # ===================== (Button Menu) same for every layout
         self.btn['inpt'] = tk.Entry(self.master, width=1, textvariable=self.active['filter'])
         self.btn['open'] = tk.Button(self.master, text='open', command=self.sm)
         self.btn['expt'] = tk.Button(self.master, text='export', command=self.export)
@@ -77,7 +77,7 @@ class MainWindow:
         self.btn['exit'].grid(row=1, column=6, pady=5, sticky='nsew')
         self.btn['inpt'].bind('<Key>',self.on_select)
 
-        # ===================== (Fields list)
+        # ===================== (Fields list) differs with each mode
         self.form['content'] = ttk.Treeview(master, show='headings', selectmode='browse', height=4)
         self.form['content'].grid(row=2, column=0, columnspan=7, rowspan=11, sticky='nsew')
 
@@ -85,7 +85,7 @@ class MainWindow:
         # self.form['content'].bind("<Double-1>", self.on_select)
         self.form['content'].bind("<<TreeViewSelect>>", self.on_select)
         # ToolTip(widget = self.form['content'], text = "Hover text!")
-        # ===================== (Comment line)
+        # ===================== (Comment line) same for every layout
         self.active['stats'] = tk.Label(self.master, text='Total : {0} records'.format(str(self.active['records'])))
         self.active['stats'].grid(row=14, column=0, columnspan=7, sticky='we')
         self.refresh()
@@ -243,7 +243,6 @@ def data_collector():
     MainWindow(root)
     root['bg'] = '#49A'
     root.mainloop()
-
 
 if __name__ == '__main__':
     data_collector()
