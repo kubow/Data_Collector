@@ -3,11 +3,19 @@
 python tkinter GUI for interacting with Sybase (ASE, IQ) and its data
 It will be universal in the future.
 
+## To-Do
+
+- Sysmon multiple mode not working
+- Sysmon filtering (function filter specific cases)
+- Resultset filtering
+
 ## Dependencies
 
 - python 3+
-- tkinter (linux) / Tkinter (windows)
+- tkinter / Tkinter
+- csv, datetime, os, sys, random, textwrap modules
 - (matplotlib)
+- (pandas)
 
 ## Implemented modes
 

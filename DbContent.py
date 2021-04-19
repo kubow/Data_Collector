@@ -24,28 +24,50 @@ class ErrLog:
     def __init__(self, err_log=''):
         self.application_type = ''
         self.dic = {}
+        self.enc = ''
+        self.encodings = ('utf-8', 'ISO-8859-1', 'ISO-8859-15')
         self.extensions = ('.txt', '.log', '.err')
         self.license = ''
         self.server_name = ''
         if err_log and any(ext in err_log for ext in self.extensions):
-            timestamp, backup = '', ''
-            with open(err_log, 'r') as err_file:
+            self.process_lines(err_log) if not self.enc else self.process_lines(err_log, encoding=self.enc)
+        else:
+            print('not an error log file:', err_log)
+
+    def process_lines(self, file, encoding=None):
+        timestamp, backup = '', ''
+        try:
+            with open(file, 'r', encoding=encoding) as err_file:
                 for line in err_file:
                     if timestamp:
                         backup = timestamp
                     line = line.strip().split(' ')
-                    try:
-                        timestamp = build_ts(line[0].split(':')[-1]+" "+line[1].split('.')[0])
-                        if backup and backup == timestamp:
-                            self.dic[timestamp] += '\n'+' '.join(line[2:])
-                        else:
-                            self.dic[timestamp] = ' '.join(line[2:])
-                    except IndexError:
-                        self.dic[timestamp] += '\n'+' '.join(line)  # this case appending to content
-                    except:
-                        print(sys.exc_info()[0])  # exception add out of index
-        else:
-            print('not an error log file:', err_log)
+                    
+                    timestamp = build_ts(line[0].split(':')[-1]+" "+line[1].split('.')[0])
+                    if backup and backup == timestamp:
+                        self.dic[timestamp] += '\n'+' '.join(line[2:])
+                    else:
+                        self.dic[timestamp] = ' '.join(line[2:]) 
+        except IndexError:
+            self.dic[timestamp] += '\n'+' '.join(line)  # this case appending to content
+        except UnicodeDecodeError:
+            err_file.close()  #re-run with different encoding
+            if not self.enc:
+                self.enc = self.encodings[0]
+                print('... trying encoding:', self.encodings[0])
+                self.process_lines(file, self.encodings[0])
+            elif self.enc == self.encodings[0]:
+                self.enc = self.encodings[1]
+                print('... trying encoding:', self.encodings[1])
+                self.process_lines(file, self.encodings[1])
+            elif self.enc == self.encodings[1]:
+                self.enc = self.encodings[2]
+                print('... trying encoding:', self.encodings[2])
+                self.process_lines(file, self.encodings[2])
+            else:
+                print('no other values for encoding')
+        except:
+            print(sys.exc_info()[0])  # exception add out of index
 
 
 class ResultSet:
@@ -57,13 +79,18 @@ class ResultSet:
         if filename:
             self.file_size = os.path.getsize(filename)
             self.file_name = os.path.basename(filename)
+            self.columns = 1
             self.path = os.path.abspath(filename)
             if any(chr.isdigit() for chr in self.file_name.split('.')[0]):
                 # TODO: SQL Anywhere specific ? Must be more conditions
                 self.time_stamp = build_ts(self.file_name.split('.')[0])
-                self.data_frame = read_csv(filename, sep=sep, header=None, quotechar="'")
+                self.data_frame = read_csv(filename, sep=sep, header=None, quotechar="'", na_filter=False)
                 self.data_frame.iloc[0] = self.time_stamp
                 self.data_frame = self.data_frame.transpose()
+                self.columns = len(self.data_frame.columns)
+            elif '.csv' in filename:
+                self.data_frame = read_csv(filename, sep=sep, header=0, na_filter=False)
+                self.columns = len(self.data_frame.columns)
             else:
                 self.data_frame = read_fwf(filename)
         else:

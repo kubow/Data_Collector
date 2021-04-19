@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import os
+from textwrap import wrap
 
 # Compatibility win <> lnx
 try:
@@ -23,7 +24,7 @@ except ImportError:
     print('... matplotlib not found, no graphing')
     can_graph = False
 
-from DbContent import SysMon, ErrLog  # , ResultSet
+from DbContent import SysMon, ErrLog, ResultSet
 # from ToolTip import ToolTip
 
 
@@ -48,7 +49,7 @@ class MainWindow:
         # self.active['filter'].trace('w', self.filter)  # bind filter input with callback 
         
         # ===================== (Main Menu + controls) same for every layout
-        self.form['location'] = tk.Label(self.master, text='Location : {0}'.format(self.active['location']))
+        self.form['location'] = tk.Label(self.master, text=f'Location : {self.active["location"]}')
         self.mode_opts['mode1'] = tk.Radiobutton(self.master, text='ASE/IQ/ASA Errorlog viewer', value=0, variable=self.active['mode'], command=self.sm)
         self.mode_opts['mode2'] = tk.Radiobutton(self.master, text='ASE Sysmon file viewer', value=1, variable=self.active['mode'], command=self.sm)
         self.mode_opts['mode3'] = tk.Radiobutton(self.master, text='ASE Sysmon directory viewer', value=2, variable=self.active['mode'], command=self.sm)
@@ -61,9 +62,9 @@ class MainWindow:
         self.mode_opts['mode4'].grid(row=0, column=6)
         
         # ===================== (Button Menu) same for every layout
-        self.btn['inpt'] = tk.Entry(self.master, width=1, textvariable=self.active['filter'])
+        self.btn['inpt'] = tk.Entry(self.master, width=1, textvariable=self.active['filter'], justify='center')
         self.btn['open'] = tk.Button(self.master, text='open', command=self.sm)
-        self.btn['expt'] = tk.Button(self.master, text='export', command=self.export)
+        self.btn['expt'] = tk.Button(self.master, text='magic', command=self.export)
         self.btn['prev'] = tk.Button(self.master, text='<', command=self.prev)
         self.btn['save'] = tk.Button(self.master, text='save')  # editing not yet implemented
         self.btn['next'] = tk.Button(self.master, text='>', command=self.next)
@@ -80,17 +81,18 @@ class MainWindow:
         # ===================== (Fields list) differs with each mode
         self.form['content'] = ttk.Treeview(master, show='headings', selectmode='browse', height=4)
         self.form['content'].grid(row=2, column=0, columnspan=7, rowspan=11, sticky='nsew')
-
+        s = ttk.Style()
+        s.configure('Treeview', rowheight=40)
         # self.form['content'].bind("<Return>", lambda e: self.on_select)
         # self.form['content'].bind("<Double-1>", self.on_select)
         self.form['content'].bind("<<TreeViewSelect>>", self.on_select)
         # ToolTip(widget = self.form['content'], text = "Hover text!")
         # ===================== (Comment line) same for every layout
-        self.active['stats'] = tk.Label(self.master, text='Total : {0} records'.format(str(self.active['records'])))
+        self.active['stats'] = tk.Label(self.master, text=f'Total : {self.active["records"]} records')
         self.active['stats'].grid(row=14, column=0, columnspan=7, sticky='we')
         self.refresh()
         
-    def sm(self):
+    def sm(self):  # sWITCH mODE
         backup = self.active['location']
         if self.active['mode'].get() == 2:
             self.active['location'] = dialog.askdirectory()
@@ -105,9 +107,23 @@ class MainWindow:
 
     def refresh(self):
         if self.await_load:
+            self.form['location']['text'] = f'Location : {self.active["location"]}'
             self.form['content'].delete(*self.form['content'].get_children())
             if self.active['mode'].get() == 3:
-                print('will join')
+                self.load_content(ResultSet(self.active['location']))
+                self.form['content']['columns'] = self.content.data_frame.columns.to_list()
+                #self.content.data_frame.fillna('', inplace=True)
+                for column in self.content.data_frame.columns:
+                    if 'id' in column.lower():
+                        self.form['content'].heading(column, text=column, anchor='center')
+                        self.form['content'].column(column, stretch="no")
+                    else:
+                        self.form['content'].heading(column, text=column, anchor='center')
+                        self.form['content'].column(column, stretch="yes")
+                for index, row in self.content.data_frame.iterrows():
+                    self.form['content'].insert("", "end", values=row.to_list())
+                self.active["records"] = len(self.content.data_frame)
+                self.await_load = False
             elif self.active['mode'].get() == 2:
                 no_files = 0
                 for dir_path, dir_names, file_names in os.walk(os.path.abspath(self.active['location'])):
@@ -116,8 +132,10 @@ class MainWindow:
                         self.content.load(os.path.join(dir_path, current))
                         # self.content.report()
                         no_files += 1
-                        print('processed', current)  # represents just one row in csv
+                        print('process', current)  # represents just one row in csv
                 print('Processed', no_files, 'files...')
+                self.active["records"] = no_files
+                self.await_load = False
             elif self.active['mode'].get() == 1:
                 self.form['content']['columns'] = ('section', 'statistic', 'current', 'measured')
                 self.load_content(SysMon())
@@ -142,6 +160,8 @@ class MainWindow:
                                 continue
                             self.form['content'].insert("", "end", values=[section, stat, definition + ' ' + key, measured])
                             i += 1
+                self.active["records"] = len(self.content.dic)
+                self.await_load = False
             elif self.active['mode'].get() == 0:
                 self.load_content(ErrLog(self.active['location']).dic)
                 self.form['content']['columns'] = ('time', 'logged')
@@ -150,24 +170,43 @@ class MainWindow:
                 self.form['content'].heading("logged", text='Message', anchor='ne')
                 self.form['content'].column("logged", stretch="yes")
                 for timestamp, row in self.content.items():
-                    self.form['content'].insert("", "end", values=[timestamp, row])
+                    self.form['content'].insert("", "end", values=[timestamp, '\n'.join(wrap(row, 150))])
+                self.active["records"] = len(self.content)
+                self.await_load = False
+            self.active['stats']['text'] = f'Total : {self.active["records"]} records'
 
     def load_content(self, object_content):
         if object_content:
             self.content = object_content
             self.original = {}
 
-    def filter(self, value):
-        if value != self.active['apply']:
-            print('limit result set with', value, '/ previous value was', self.active['apply'])
-            self.active['apply'] = value
+    def filter(self, string):
+        if string != self.active['apply']:
+            self.active['apply'] = string
+            print('limit result set with', string, '/ previous value was', self.active['apply'])
+            self.form['content'].delete(*self.form['content'].get_children())
             if not self.original:
                 self.original = self.content
-            else:
-                self.content = self.original
-            for entry, content in self.content:
-                if not value in entry or not value in content:
-                    self.content.pop(entry)
+            if self.active['mode'].get() == 3:
+                if any(self.content.data_frame.columns) in string:
+                    print('column filter mdoe')
+                else:
+                    for index, row in self.content.data_frame.iterrows():
+                        if string in row:
+                            self.form['content'].insert("", "end", values=row.to_list())
+            elif self.active['mode'].get() == 2:
+                print('this mode not implemented for filtering')
+            elif self.active['mode'].get() == 1:
+                print('this mode not implemented for filtering')
+            elif self.active['mode'].get() == 0:
+                if not string:
+                    self.content = self.original
+                else:
+                    self.content = {key:value for (key,value) in self.content.items() if string in value}
+                for timestamp, row in self.content.items():
+                    self.form['content'].insert("", "end", values=[timestamp, '\n'.join(wrap(row, 150))])
+            self.active["records"] = len(self.content)
+            self.active['stats']['text'] = f'Total : {self.active["records"]} records'
 
     def on_select(self, evt):
         w = evt.widget
