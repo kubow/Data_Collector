@@ -4,16 +4,16 @@ import os.path
 from os import walk
 import sys
 try:
-    from pandas import read_csv, read_fwf
+    from pandas import read_csv, read_excel, read_fwf, DataFrame
 except ImportError:
-    print('... pandas library not found, cannot read csv')
+    print('!!! pandas library not found, cannot read csv and excel')
 
 
 # import sqlite3
 # import matplotlib.pyplot as mplt
 
 class ErrLog:
-    """ASE/IQ(TODO: MSSQL,PgSQL,MySQL) errorlog holder
+    """ASA/ASE/IQ(TODO: MSSQL,PgSQL,MySQL) errorlog holder
     %err_log: path to the errorlog file
     output is aggregated by timestamps:
     # dic[key]: date-time stamp
@@ -25,6 +25,7 @@ class ErrLog:
         self.application_type = ''
         self.dic = {}
         self.enc = ''
+        # TODO: add more encodings and make UnicodeDecodeError logic automatic
         self.encodings = ('utf-8', 'ISO-8859-1', 'ISO-8859-15')
         self.extensions = ('.txt', '.log', '.err')
         self.license = ''
@@ -34,6 +35,10 @@ class ErrLog:
         else:
             print('not an error log file:', err_log)
 
+    def plot():
+        # TODO: make display categories
+        print('errorlog cannot be plotted now')
+
     def process_lines(self, file, encoding=None):
         timestamp, backup = '', ''
         try:
@@ -42,7 +47,8 @@ class ErrLog:
                     if timestamp:
                         backup = timestamp
                     line = line.strip().split(' ')
-                    
+                    if 'I.' in line[0]:
+                        line.pop(0)
                     timestamp = build_ts(line[0].split(':')[-1]+" "+line[1].split('.')[0])
                     if backup and backup == timestamp:
                         self.dic[timestamp] += '\n'+' '.join(line[2:])
@@ -75,7 +81,7 @@ class ResultSet:
     %filename: full path to exported resultset
     %sep: fields sparator (default is >,<)
     """
-    def __init__(self, filename='', sep=','):
+    def __init__(self, filename='', sep=',', header=True):
         if filename:
             self.file_size = os.path.getsize(filename)
             self.file_name = os.path.basename(filename)
@@ -85,9 +91,13 @@ class ResultSet:
                 # TODO: SQL Anywhere specific ? Must be more conditions
                 self.time_stamp = build_ts(self.file_name.split('.')[0])
                 self.data_frame = read_csv(filename, sep=sep, header=None, quotechar="'", na_filter=False)
-                self.data_frame.iloc[0] = self.time_stamp
-                self.data_frame = self.data_frame.transpose()
+                # self.data_frame.iloc[0] = self.time_stamp
+                # self.data_frame = self.data_frame.transpose()
+                # self.data_frame.loc[:,-1]
                 self.columns = len(self.data_frame.columns)
+                # TODO: another types of datasets fits in here
+            elif '.xls' in filename:
+                self.data_frame = read_excel(filename)
             elif '.csv' in filename:
                 self.data_frame = read_csv(filename, sep=sep, header=0, na_filter=False)
                 self.columns = len(self.data_frame.columns)
@@ -95,7 +105,11 @@ class ResultSet:
                 self.data_frame = read_fwf(filename)
         else:
             print('please provide a path to result set file')
-            
+
+    def plot(self, index_row):
+        if isinstance(self.data_frame, DataFrame) and isinstance(index_row, int):
+            self.data_frame.plot(x=self.data_frame.iloc[0], y=self.data_frame.iloc[index_row])
+
     def write_csv(self, csv=''):
         if csv:
             if os.path.isfile(csv):  # do not append header in case file exist
@@ -156,6 +170,9 @@ class SysMon:
                         sec.content[self.counter['section_lines']] = {'line': [x.strip() for x in line.split('  ') if x]}
                     self.counter['lines'] += 1
     
+    def plot():
+        print('not implemented yet')
+
     def report(self, file_type='csv'):
         print('*********', self.report_name, '(', self.server_name, '@', self.ts, ')', '***********')
         omit_sections = ['Worker Process Management', 'Task Management', 'Transaction Profile']
@@ -282,20 +299,98 @@ class Section:
             return False
 
 
-def build_ts(value=None):
-    # build timestamp value from a given value
-    try:
-        if '/' in value:
-            return datetime.strptime(value, '%Y/%m/%d %H:%M:%S')
-        elif '_' in value:
-            if len(value.split('_')) > 2:
-                return datetime.strptime(('_').join(value.split('_')[-2:]), '%Y%m%d_%H%M')
-            else:
-                return datetime.strptime(value, '%Y%m%d_%H%M')
-        elif '-' in value:
-            return datetime.strptime(value, '%Y-%m-%d %H:%M:%S')
+def contains_vals(variable):
+    """universal finder for any values
+    returns true if at least one value exist
+    input can be:
+    - panda's data frame
+    - dictionary
+    TODO: check also simple variables in last step
+    """   
+    if isinstance(variable, DataFrame):  
+        if variable.empty:
+            return False
         else:
-            return datetime.strptime(value, '%b %d, %Y %H:%M:%S')
+            return True
+    elif variable:
+        return True
+    else:
+        return False
+
+def move_record(variable, active, up=True):
+    if isinstance(variable, DataFrame) and not variable.empty:
+        if up:
+            return True
+        else:
+            return False
+    else:  # all other variable types
+        if up:
+            if active < len(variable):
+                return True
+        else:
+            if len(variable) < active:
+                return True
+
+def build_ts(ts_value=None):
+    """build timestamp value from a given string ts_value
+    expects > < >_< or no date time separator
+    TODO: watch for more exotic separators
+    """ 
+    try:
+        ts_format = ''
+        if ' ' in ts_value:
+            sep = ' '
+        elif '_' in ts_value:
+            sep = '_'
+        else:
+            print('what is divider between date and time here?', ts_value)
+        if sep=='_' and not isinstance(ts_value.split(sep)[0], int):
+            ts_value = sep.join(ts_value.split(sep)[1:])  # cut-off forst part of string
+        med = ts_value.split(sep)
+        if len(med) == 2:
+            ts_format = sep.join((fmt_ts(f_val=med[0]), fmt_ts(f_type='time', f_val=med[1])))
+        elif len(med) > 2:
+            ts_value = sep.join(med.split(sep)[-2:])
+            ts_format = sep.join((fmt_ts(f_val=med[0]), fmt_ts(f_type='time', f_val=med[1]))) 
     except:
         # print(sys.exc_info()[1])
-        return None
+        return ts_value
+    finally:
+        if ts_format:
+            return datetime.strptime(ts_value, ts_format)
+        else:
+            return ts_value
+
+
+def fmt_ts(f_type='date', f_val=''):
+    """get format of a time/date given by:
+    f_type : input value type
+    f_val  : input value
+    """
+    if f_type == 'date':
+        if '/' in f_val:
+            f_val = f_val.split('/')
+            if len(f_val) == 3:
+                return '%Y/%m/%d'
+            elif len(f_val) == 2:
+                return '%m/%d'
+        elif '-' in f_val:
+            f_val = f_val.split('-')
+            if len(f_val) == 3:
+                return '%Y-%m-%d'
+            elif len(f_val) == 2:
+                return '%m-%d'
+        elif ',' in f_val:
+            return '%b %d, %Y'
+        else:
+            return '%Y%m%d'
+    elif f_type == 'time':
+        if ':' in f_val:
+            f_val = f_val.split(':')
+            if len(f_val) == 3:
+                return '%H:%M:%S'
+            elif len(f_val) == 2:
+                return '%H:%M'
+        else:
+            return '%H%M'
+

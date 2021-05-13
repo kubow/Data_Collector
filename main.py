@@ -24,7 +24,7 @@ except ImportError:
     print('... matplotlib not found, no graphing')
     can_graph = False
 
-from DbContent import SysMon, ErrLog, ResultSet
+from DbContent import SysMon, ErrLog, ResultSet, contains_vals, move_record
 # from ToolTip import ToolTip
 
 
@@ -50,37 +50,39 @@ class MainWindow:
         
         # ===================== (Main Menu + controls) same for every layout
         self.form['location'] = tk.Label(self.master, text=f'Location : {self.active["location"]}')
-        self.mode_opts['mode1'] = tk.Radiobutton(self.master, text='ASE/IQ/ASA Errorlog viewer', value=0, variable=self.active['mode'], command=self.sm)
-        self.mode_opts['mode2'] = tk.Radiobutton(self.master, text='ASE Sysmon file viewer', value=1, variable=self.active['mode'], command=self.sm)
-        self.mode_opts['mode3'] = tk.Radiobutton(self.master, text='ASE Sysmon directory viewer', value=2, variable=self.active['mode'], command=self.sm)
-        self.mode_opts['mode4'] = tk.Radiobutton(self.master, text='ASE/IQ/ASA Resultset viewer', value=3, variable=self.active['mode'], command=self.sm)
+        self.mode_opts['mode1'] = tk.Radiobutton(self.master, text='Errorlog viewer', value=0, variable=self.active['mode'], command=self.sm)
+        self.mode_opts['mode2'] = tk.Radiobutton(self.master, text='Sysmon file viewer', value=1, variable=self.active['mode'], command=self.sm)
+        self.mode_opts['mode3'] = tk.Radiobutton(self.master, text='Sysmon directory viewer', value=2, variable=self.active['mode'], command=self.sm)
+        self.mode_opts['mode4'] = tk.Radiobutton(self.master, text='Resultset viewer', value=3, variable=self.active['mode'], command=self.sm)
+        self.mode_opts['mode5'] = tk.Radiobutton(self.master, text='Resultset directory viewer', value=4, variable=self.active['mode'], command=self.sm)
         
         self.form['location'].grid(row=0, column=0, columnspan=3, sticky='we')
         self.mode_opts['mode1'].grid(row=0, column=3)
         self.mode_opts['mode2'].grid(row=0, column=4)
         self.mode_opts['mode3'].grid(row=0, column=5)
         self.mode_opts['mode4'].grid(row=0, column=6)
+        self.mode_opts['mode5'].grid(row=0, column=7)
         
         # ===================== (Button Menu) same for every layout
         self.btn['inpt'] = tk.Entry(self.master, width=1, textvariable=self.active['filter'], justify='center')
         self.btn['open'] = tk.Button(self.master, text='open', command=self.sm)
         self.btn['expt'] = tk.Button(self.master, text='magic', command=self.export)
         self.btn['prev'] = tk.Button(self.master, text='<', command=self.prev)
-        self.btn['save'] = tk.Button(self.master, text='save')  # editing not yet implemented
+        self.btn['save'] = tk.Button(self.master, text='save', command=self.save)  # editing not yet implemented
         self.btn['next'] = tk.Button(self.master, text='>', command=self.next)
         self.btn['exit'] = tk.Button(self.master, text='quit', command=self.quit)
-        self.btn['inpt'].grid(row=1, column=0, pady=5, sticky='nsew')
-        self.btn['open'].grid(row=1, column=1, pady=5, sticky='nsew')
-        self.btn['expt'].grid(row=1, column=2, pady=5, sticky='nsew')
-        self.btn['prev'].grid(row=1, column=3, pady=5, sticky='nsew')
-        self.btn['save'].grid(row=1, column=4, pady=5, sticky='nsew')
-        self.btn['next'].grid(row=1, column=5, pady=5, sticky='nsew')
-        self.btn['exit'].grid(row=1, column=6, pady=5, sticky='nsew')
+        self.btn['inpt'].grid(row=1, column=0, columnspan=2, pady=5, sticky='nsew')
+        self.btn['open'].grid(row=1, column=2, pady=5, sticky='nsew')
+        self.btn['expt'].grid(row=1, column=3, pady=5, sticky='nsew')
+        self.btn['prev'].grid(row=1, column=4, pady=5, sticky='nsew')
+        self.btn['save'].grid(row=1, column=5, pady=5, sticky='nsew')
+        self.btn['next'].grid(row=1, column=6, pady=5, sticky='nsew')
+        self.btn['exit'].grid(row=1, column=7, pady=5, sticky='nsew')
         self.btn['inpt'].bind('<Key>',self.on_select)
 
         # ===================== (Fields list) differs with each mode
         self.form['content'] = ttk.Treeview(master, show='headings', selectmode='browse', height=4)
-        self.form['content'].grid(row=2, column=0, columnspan=7, rowspan=11, sticky='nsew')
+        self.form['content'].grid(row=2, column=0, columnspan=8, rowspan=11, sticky='nsew')
         s = ttk.Style()
         s.configure('Treeview', rowheight=40)
         # self.form['content'].bind("<Return>", lambda e: self.on_select)
@@ -89,12 +91,12 @@ class MainWindow:
         # ToolTip(widget = self.form['content'], text = "Hover text!")
         # ===================== (Comment line) same for every layout
         self.active['stats'] = tk.Label(self.master, text=f'Total : {self.active["records"]} records')
-        self.active['stats'].grid(row=14, column=0, columnspan=7, sticky='we')
+        self.active['stats'].grid(row=14, column=0, columnspan=8, sticky='we')
         self.refresh()
         
     def sm(self):  # sWITCH mODE
         backup = self.active['location']
-        if self.active['mode'].get() == 2:
+        if self.active['mode'].get() in (2, 4):
             self.active['location'] = dialog.askdirectory()
         else:
             self.active['location'] = dialog.askopenfilename()
@@ -109,16 +111,36 @@ class MainWindow:
         if self.await_load:
             self.form['location']['text'] = f'Location : {self.active["location"]}'
             self.form['content'].delete(*self.form['content'].get_children())
-            if self.active['mode'].get() == 3:
+            if self.active['mode'].get() == 4:
+                no_files = 0
+                for dir_path, dir_names, file_names in os.walk(os.path.abspath(self.active['location'])):
+                    for current in file_names:
+                        a = ResultSet(os.path.join(dir_path, current))
+                        columns = []
+                        if no_files < 1:
+                            self.content = a.data_frame.iloc[:,-3:-2]
+                            self.content.columns = ["description", ]
+                        self.content[a.time_stamp] = a.data_frame.iloc[:,-1:]
+                        no_files += 1
+                        print('process', current, '- represents just one row in dataset')   
+                print('Processed', no_files, 'files...')
+                self.form['content']['columns'] = self.content.columns.to_list()
+                for column in self.content.columns:
+                    self.form['content'].heading(column, text=column, anchor='center')
+                    self.form['content'].column(column, stretch="yes")
+                for index, row in self.content.iterrows():
+                    self.form['content'].insert("", "end", values=row.to_list())
+                self.active["records"] = len(self.content)
+                self.await_load = False
+            elif self.active['mode'].get() == 3:
                 self.load_content(ResultSet(self.active['location']))
                 self.form['content']['columns'] = self.content.data_frame.columns.to_list()
                 #self.content.data_frame.fillna('', inplace=True)
                 for column in self.content.data_frame.columns:
-                    if 'id' in column.lower():
-                        self.form['content'].heading(column, text=column, anchor='center')
+                    self.form['content'].heading(column, text=column, anchor='center')
+                    if 'id' in str(column).lower():
                         self.form['content'].column(column, stretch="no")
                     else:
-                        self.form['content'].heading(column, text=column, anchor='center')
                         self.form['content'].column(column, stretch="yes")
                 for index, row in self.content.data_frame.iterrows():
                     self.form['content'].insert("", "end", values=row.to_list())
@@ -128,8 +150,12 @@ class MainWindow:
                 no_files = 0
                 for dir_path, dir_names, file_names in os.walk(os.path.abspath(self.active['location'])):
                     for current in file_names:
-                        self.load_content(SysMon())
-                        self.content.load(os.path.join(dir_path, current))
+                        a = SysMon()
+                        a.load(os.path.join(dir_path, current))
+                        if no_files < 1:
+                            self.content = ResultSet(a.content)  # TODO: need to test
+                            self.content.columns = ["description",]
+                        self.content[current] = a.data_frame.tail(1).transpose()
                         # self.content.report()
                         no_files += 1
                         print('process', current)  # represents just one row in csv
@@ -163,7 +189,7 @@ class MainWindow:
                 self.active["records"] = len(self.content.dic)
                 self.await_load = False
             elif self.active['mode'].get() == 0:
-                self.load_content(ErrLog(self.active['location']).dic)
+                self.content = ErrLog(self.active['location']).dic
                 self.form['content']['columns'] = ('time', 'logged')
                 self.form['content'].heading("time", text='Log Time', anchor='w')
                 self.form['content'].column("time", stretch="no")
@@ -180,14 +206,20 @@ class MainWindow:
             self.content = object_content
             self.original = {}
 
-    def filter(self, string):
-        if string != self.active['apply']:
-            self.active['apply'] = string
+    def filter(self, string):  # TODO: repeating, need to use functions
+        if not string:
+            self.content = self.original
+        elif string != self.active['apply']:
             print('limit result set with', string, '/ previous value was', self.active['apply'])
+            self.active['apply'] = string
             self.form['content'].delete(*self.form['content'].get_children())
-            if not self.original:
+            if not contains_vals(self.original):
                 self.original = self.content
-            if self.active['mode'].get() == 3:
+            if self.active['mode'].get() == 4:
+                f = self.content[self.content['description'].str.lower().str.contains(string)]
+                for index, row in f.iterrows():
+                    self.form['content'].insert("", "end", values=row.to_list())
+            elif self.active['mode'].get() == 3:
                 if any(self.content.data_frame.columns) in string:
                     print('column filter mdoe')
                 else:
@@ -199,10 +231,7 @@ class MainWindow:
             elif self.active['mode'].get() == 1:
                 print('this mode not implemented for filtering')
             elif self.active['mode'].get() == 0:
-                if not string:
-                    self.content = self.original
-                else:
-                    self.content = {key:value for (key,value) in self.content.items() if string in value}
+                self.content = {key:value for (key,value) in self.content.items() if string in value}
                 for timestamp, row in self.content.items():
                     self.form['content'].insert("", "end", values=[timestamp, '\n'.join(wrap(row, 150))])
             self.active["records"] = len(self.content)
@@ -222,13 +251,19 @@ class MainWindow:
                 self.master.after(1000,lambda: self.filter(self.btn['inpt'].get()))
         self.refresh()
 
+    # move_record from DbContent is not ready
     def prev(self):
-        if self.content:
+        if contains_vals(self.content):
+            self.active['index'] = move_record(self.content, self.active['index'], up=False)
+        else:
             if self.active['index'] > 1:
                 self.active['index'] -= 1
 
     def next(self):
         if self.content:
+            if not self.content.empty:
+                self.active['index'] += 1
+        elif self.content:
             if self.active['index'] < len(self.content.dic):
                 self.active['index'] += 1
 
@@ -247,16 +282,33 @@ class MainWindow:
             # self.contacts_list.event_generate("<<ListboxSelect>>")
 
     def export(self):
-        if self.content:
-            if self.active['mode'].get():  # file mode, export to directory
+        if self.active['mode'].get() in (2, 4):  # folder mode , plotting
+            if self.form['content'].selection():
+                sel = int(self.form['content'].selection()[0][1:])
+                a = self.content.iloc[sel -1]
+                magic = a.to_frame()
+                magic.iloc[0].split(' ')[-1]
+                magic.plot(x=magic.index.values, y=magic[1])  #, kind='scatter')
+                magic.plot.line(y=magic[1])  #, kind='scatter')
+                plt.show()
+            else:
+                print('please select a row')
+        else:
+            print('file mode magic ... what can be done here? report only upon errorlog?')
+
+    def save(self):
+        if contains_vals(self.content):
+            if self.active['mode'].get() in (0, 1, 3):  # file mode, export to directory
                 final_loc = dialog.askdirectory()
             else:
-                final_loc = dialog.asksaveasfile(mode='w', defaultextension=".txt")
+                final_loc = dialog.asksaveasfile(mode='w', defaultextension=".csv")
             if self.active['location'] != final_loc and final_loc:
-                if self.active['mode'].get():
-                    self.content.dic.export(final_loc)
+                if self.active['mode'].get() in (2, 4):
+                    final_dataset = self.content.transpose()  #.loc[1:,-1]
+                    final_dataset.to_csv(final_loc, encoding='utf-8', header=False, index=True, line_terminator='\n', mode='w')
                 else:
                     self.content.dic.merge(final_loc)
+                    #self.content.dic.export(final_loc)
 
     def quit(self):
         self.master.destroy()
@@ -265,7 +317,7 @@ class MainWindow:
 def data_collector():
     root = tk.Tk()
     root.title('SYBASE Collector')
-    root.resizable(7, 15)
+    root.resizable(8, 15)
     # root.geometry('1200x900')
     root.columnconfigure(0, weight=2)
     root.columnconfigure(1, weight=1)
