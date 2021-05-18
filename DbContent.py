@@ -12,121 +12,146 @@ except ImportError:
 # import sqlite3
 # import matplotlib.pyplot as mplt
 
-class ErrLog:
-    """ASA/ASE/IQ(TODO: MSSQL,PgSQL,MySQL) errorlog holder
-    %err_log: path to the errorlog file
-    output is aggregated by timestamps:
-    # dic[key]: date-time stamp
-    # dic[value]: multi-line connected in one string
-    # application_type: TODO: sniff type of errorlog file
-    # server_name: TODO: sniff running server name
-    # license: TODO: sniff type of license and number of cores/seats"""
-    def __init__(self, err_log=''):
-        self.application_type = ''
-        self.dic = {}
-        self.enc = ''
-        # TODO: add more encodings and make UnicodeDecodeError logic automatic
-        self.encodings = ('utf-8', 'ISO-8859-1', 'ISO-8859-15')
-        self.extensions = ('.txt', '.log', '.err')
-        self.license = ''
-        self.server_name = ''
-        if err_log and any(ext in err_log for ext in self.extensions):
-            self.process_lines(err_log) if not self.enc else self.process_lines(err_log, encoding=self.enc)
-        else:
-            print('not an error log file:', err_log)
-
-    def plot():
-        # TODO: make display categories
-        print('errorlog cannot be plotted now')
-
-    def process_lines(self, file, encoding=None):
-        timestamp, backup = '', ''
-        try:
-            with open(file, 'r', encoding=encoding) as err_file:
-                for line in err_file:
-                    if timestamp:
-                        backup = timestamp
-                    line = line.strip().split(' ')
-                    if 'I.' in line[0]:
-                        line.pop(0)
-                    timestamp = build_ts(line[0].split(':')[-1]+" "+line[1].split('.')[0])
-                    if backup and backup == timestamp:
-                        self.dic[timestamp] += '\n'+' '.join(line[2:])
-                    else:
-                        self.dic[timestamp] = ' '.join(line[2:]) 
-        except IndexError:
-            self.dic[timestamp] += '\n'+' '.join(line)  # this case appending to content
-        except UnicodeDecodeError:
-            err_file.close()  #re-run with different encoding
-            if not self.enc:
-                self.enc = self.encodings[0]
-                print('... trying encoding:', self.encodings[0])
-                self.process_lines(file, self.encodings[0])
-            elif self.enc == self.encodings[0]:
-                self.enc = self.encodings[1]
-                print('... trying encoding:', self.encodings[1])
-                self.process_lines(file, self.encodings[1])
-            elif self.enc == self.encodings[1]:
-                self.enc = self.encodings[2]
-                print('... trying encoding:', self.encodings[2])
-                self.process_lines(file, self.encodings[2])
-            else:
-                print('no other values for encoding')
-        except:
-            print(sys.exc_info()[0])  # exception add out of index
-
 
 class ResultSet:
-    """universal loader for text files using pandas dataframes
-    %filename: full path to exported resultset
+    """universal loader for any content using pandas dataframes
+    %content: full path to exported resultset / actual dataset
     %sep: fields sparator (default is >,<)
+    %header: indicator for header loading
+    %direct: indicator for actual dataset usage
     """
-    def __init__(self, filename='', sep=',', header=True):
-        if filename:
-            self.file_size = os.path.getsize(filename)
-            self.file_name = os.path.basename(filename)
-            self.columns = 1
-            self.path = os.path.abspath(filename)
-            if any(chr.isdigit() for chr in self.file_name.split('.')[0]):
-                # TODO: SQL Anywhere specific ? Must be more conditions
-                self.time_stamp = build_ts(self.file_name.split('.')[0])
-                self.data_frame = read_csv(filename, sep=sep, header=None, quotechar="'", na_filter=False)
-                # self.data_frame.iloc[0] = self.time_stamp
-                # self.data_frame = self.data_frame.transpose()
-                # self.data_frame.loc[:,-1]
-                self.columns = len(self.data_frame.columns)
-                # TODO: another types of datasets fits in here
-            elif '.xls' in filename:
-                self.data_frame = read_excel(filename)
-            elif '.csv' in filename:
-                self.data_frame = read_csv(filename, sep=sep, header=0, na_filter=False)
-                self.columns = len(self.data_frame.columns)
+    def __init__(self, content='', sep=',', header=True, direct=False):
+
+        if direct:  # has its own self.time_stamp coming from parent
+            if isinstance(content, dict):
+                self.df = DataFrame.from_dict(content, orient='index')
+            elif isinstance(content, list) or isinstance(content, tuple):
+                self.df = DataFrame(content, index=[0])
             else:
-                self.data_frame = read_fwf(filename)
+                self.df = DataFrame(content)
+                print(f'The loaded content is a type: {type(content)}, need to specify dataframe?')
+        elif not direct and content:
+            self.time_stamp = ''  # time stamp needs to be nulled
+            file_name = os.path.basename(content)  # primary check if timestamp in name of the file
+            if any(chr.isdigit() for chr in file_name.split('.')[0]):
+                # TODO: SQL Anywhere specific ? Must be more conditions
+                self.time_stamp = build_ts(file_name.split('.')[0])
+                self.df = read_csv(content, sep=sep, header=None, quotechar="'", na_filter=False)
+                # TODO: another types of datasets fits in here # self.df = self.df.transpose() # self.df.loc[:,-1]
+            elif '.xlsx' in content:
+                self.df = DataFrame()
+                print('need to install library for opening xlsx files....')
+            elif '.xls' in content:
+                self.df = read_excel(content)
+            elif '.csv' in content:
+                self.df = read_csv(content, sep=sep, header=0, na_filter=False)
+            else:
+                self.df = read_fwf(content)
+            print(f'... opened file {file_name} from {os.path.abspath(content)} (size: {os.path.getsize(content)} kb)')
         else:
             print('please provide a path to result set file')
 
     def plot(self, index_row):
-        if isinstance(self.data_frame, DataFrame) and isinstance(index_row, int):
-            self.data_frame.plot(x=self.data_frame.iloc[0], y=self.data_frame.iloc[index_row])
+        if isinstance(self.df, DataFrame) and isinstance(index_row, int):
+            self.df.plot(x=self.df.iloc[0], y=self.df.iloc[index_row])
 
     def write_csv(self, csv=''):
         if csv:
             if os.path.isfile(csv):  # do not append header in case file exist
-                self.data_frame.tail(1).to_csv(csv, mode='a', encoding='utf-8', header=False)
+                self.df.tail(1).to_csv(csv, mode='a', encoding='utf-8', header=False)
             else:
-                self.data_frame.tail(3).head(1).to_csv(csv, mode='w', encoding='utf-8', header=False)
-                self.data_frame.tail(1).to_csv(csv, mode='a', encoding='utf-8', header=False)
+                self.df.tail(3).head(1).to_csv(csv, mode='w', encoding='utf-8', header=False)
+                self.df.tail(1).to_csv(csv, mode='a', encoding='utf-8', header=False)
         else:
-            self.data_frame.to_csv(self.file_name+'.csv', mode='w', encoding='utf-8')
+            self.df.to_csv(self.file_name+'.csv', mode='w', encoding='utf-8')
+
+
+class ErrLog:
+    """ASA/ASE/IQ errorlog loader
+    %err_log: path to the errorlog file
+    output is aggregated by timestamps:
+    # dic[key]: date-time stamp
+    # dic[value]: string multi-line 
+    # application_type: TODO: sniff type of errorlog file
+    # server_name: TODO: sniff running server name
+    # license: TODO: sniff type of license and number of cores/seats
+    # (TODO: MSSQL,PgSQL,MySQL)"""
+    def __init__(self, err_log=''):
+        self.dic = {}
+        self.options = {
+            "app" : {"type":'', "license":'', "server": ''},
+            "enc" : {
+                "activ": '',
+                "avail" : ('utf-8', 'ISO-8859-1', 'ISO-8859-15')
+                # TODO: + more encodings and logic automatic
+            },
+            "ext" : ('.txt', '.log', '.err')
+        }
+        if err_log and any(ext in err_log for ext in self.options["ext"]):
+            self.process_lines(err_log)
+            ResultSet.__init__(self, content=self.dic, direct=True)
+        else:
+            print('not an error log file:', err_log)
+
+    def process_lines(self, file, encoding=None):
+        timestamp, backup = '', ''
+        try:
+            if self.options["enc"]["activ"]:
+                with open(file, 'r', encoding=encoding) as err_file:
+                    for line in err_file:
+                        if timestamp:
+                            backup = timestamp
+                        line = line.strip().split(' ')
+                        if 'I.' in line[0]:
+                            line.pop(0)
+                        timestamp = build_ts(line[0].split(':')[-1]+" "+line[1].split('.')[0])
+                        if backup and backup == timestamp:
+                            self.dic[timestamp] += '\n'+' '.join(line[2:])
+                        else:
+                            self.dic[timestamp] = ' '.join(line[2:]) 
+            else:
+                with open(file, 'r') as err_file:
+                    for line in err_file:
+                        if timestamp:
+                            backup = timestamp
+                        line = line.strip().split(' ')
+                        if 'I.' in line[0]:
+                            line.pop(0)
+                        timestamp = build_ts(line[0].split(':')[-1]+" "+line[1].split('.')[0])
+                        if backup and backup == timestamp:
+                            self.dic[timestamp] += '\n'+' '.join(line[2:])
+                        else:
+                            self.dic[timestamp] = ' '.join(line[2:]) 
+        except IndexError:
+            self.dic[timestamp] += '\n'+' '.join(line)  # this case appending to content
+        except UnicodeDecodeError:
+            err_file.close()  #re-run with different encoding
+            if not self.options["enc"]["activ"]:
+                self.options["enc"]["activ"] = self.options["enc"]["avail"][0]
+                print('... trying encoding:', self.options["enc"]["avail"][0])
+                self.process_lines(file, self.options["enc"]["avail"][0])
+            elif self.options["enc"]["activ"] == self.options["enc"]["avail"][0]:
+                self.options["enc"]["activ"] = self.options["enc"]["avail"][1]
+                print('... trying encoding:', self.options["enc"]["avail"][1])
+                self.process_lines(file, self.options["enc"]["avail"][1])
+            elif self.options["enc"]["activ"] == self.options["enc"]["avail"][1]:
+                self.options["enc"]["activ"] = self.options["enc"]["avail"][2]
+                print('... trying encoding:', self.options["enc"]["avail"][2])
+                self.process_lines(file, self.options["enc"]["avail"][2])
+            else:
+                print('no other values for encoding')
+        except:
+            print(sys.exc_info()[0])  # exception add out of 
+        finally:
+            if timestamp:
+                self.time_stamp = timestamp
 
 
 class SysMon:
     """holds all symon sections in dict variable
     expects headered parameter - true writes columns and data - false just data"""
-    def __init__(self, headered=False):
-        self.source = ''
-        self.ts = ''  # date time value
+    def __init__(self, content, headered=False):
+        self.time_stamp = ''  # date time value
         self.wh = headered  # with header data
         self.server_name = ''  # main data server name (###_DS, ###_BS, ...)
         self.report_name = ''  # ### System Performance Report
@@ -136,11 +161,13 @@ class SysMon:
         self.valid = ['Kernel Utilization', 'Worker Process Management', 'Parallel Query Management', 'Task Management',
                       'Application Management', 'Transaction Profile', 'Transaction Management', 'Lock Management',
                       'Data Cache Management', 'NV Cache Management', 'Disk I/O Management', 'Network I/O Management']
+        print(f'{"~"*3} debug: begin to read sysmon file: {content}')
+        self.load(content)  # this is the hard part - constructing dictionary
+        ResultSet.__init__(self, content=self.dic, direct=True)
 
-    def load(self, filename):
+    def load(self, content):
         flag = {'subsection': False, 'next_line': False}
-        self.source = filename
-        with open(filename, 'r', encoding='utf-8') as sysmon_file:
+        with open(content, 'r', encoding='utf-8') as sysmon_file:
             sec = Section()
             for line in sysmon_file:
                 line = line.strip()
@@ -163,22 +190,19 @@ class SysMon:
                         if 'Server Version' in line:
                             self.version = line.split('   ')[-1]
                         elif 'Sampling Started' in line:
-                            self.ts = build_ts(line.split('   ')[-1])
+                            self.time_stamp = build_ts(line.split('   ')[-1])
                         elif 'Server Name' in line:
                             self.server_name = line.split('   ')[-1]
                     else:
                         sec.content[self.counter['section_lines']] = {'line': [x.strip() for x in line.split('  ') if x]}
                     self.counter['lines'] += 1
-    
-    def plot():
-        print('not implemented yet')
 
-    def report(self, file_type='csv'):
-        print('*********', self.report_name, '(', self.server_name, '@', self.ts, ')', '***********')
+    def report(self, location, file_type='csv'):
+        print('*********', self.report_name, '(', self.server_name, '@', self.time_stamp, ')', '***********')
         omit_sections = ['Worker Process Management', 'Task Management', 'Transaction Profile']
         if file_type == 'csv':
             # TODO: not always same count of columns, need to sort out!
-            with open(os.path.join(self.source, 'report.csv'), 'a', newline='') as file:
+            with open(os.path.join(location, 'report.csv'), 'a', newline='') as file:
                 cswrt = csv.writer(file, delimiter=';')
                 if self.wh:
                     header = ['timestamp', ]
@@ -192,7 +216,7 @@ class SysMon:
                                     self.counter['items'] += 1
                     self.counter['columns'] = len(header)
                     cswrt.writerow(header)
-                data = [self.ts, ]
+                data = [self.time_stamp, ]
                 for section, stats in self.dic.items():
                     if not any(s in section for s in omit_sections):
                         for statistic, stat_detail in stats.items():
@@ -205,13 +229,13 @@ class SysMon:
                 cswrt.writerow(data)
         elif file_type == 'json':
             # this is desired structure: [{'date': 'YYYY-mm-dd HH:MM:SS', 'var1': 'var1', ...}, {...}, ...]
-            with open(os.path.join(self.source, 'report.json'), 'a') as stream:
+            with open(os.path.join(location, 'report.json'), 'a') as stream:
                 self.counter['items'] = 1
                 item = '"{0}": "{1}"'
                 if self.counter['items'] > 2:
-                    stream.write('}}, {{' + item.format('date', self.ts))
+                    stream.write('}}, {{' + item.format('date', self.time_stamp))
                 else:
-                    stream.write('[{{' + item.format('date', self.ts))
+                    stream.write('[{{' + item.format('date', self.time_stamp))
                 for section, stats in self.dic.items():
                     if not any(s in section for s in omit_sections):
                         for statistic, stat_detail in stats.items():
