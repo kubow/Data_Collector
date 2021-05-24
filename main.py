@@ -110,69 +110,40 @@ class MainWindow:
     def refresh(self):
         if self.await_load:
             self.form['location']['text'] = f'Location : {self.active["location"]}'
-            self.form['content'].delete(*self.form['content'].get_children())
-            if self.active['mode'].get() == 4:
-                no_files = 0
-                for dir_path, dir_names, file_names in os.walk(os.path.abspath(self.active['location'])):
-                    for current in file_names:
-                        a = ResultSet(os.path.join(dir_path, current))
-                        columns = []
-                        if no_files < 1:
-                            self.content = a.data_frame.iloc[:,-3:-2]
-                            self.content.columns = ["description", ]
-                        self.content[a.time_stamp] = a.data_frame.iloc[:,-1:]
-                        no_files += 1
-                        print('process', current, '- represents just one row in dataset')   
-                print('Processed', no_files, 'files...')
+            self.form['content'].delete(*self.form['content'].get_children())  # clear the form
+            self.load_content()  # load content based on mode
+            try:
+                if self.content.df:
+                    self.active["records"] = len(self.content.df)  # count number of records in data frame
+                else:
+                    self.active["records"] = len(self.content)  # count number of records in data frame
+            except AttributeError:
+                self.active["records"] = len(self.content)  # count number of records in data frame
+            except:
+                print('what goues here, need to debug')
+            self.active['stats']['text'] = f'Total : {self.active["records"]} records'
+            self.await_load = False  # flag for initialize
+
+            #final step is to fill the values to the form - 1. columns, 2. content
+            if self.active['mode'].get() in (2, 3, 4):
                 self.form['content']['columns'] = self.content.columns.to_list()
-                for column in self.content.columns:
-                    self.form['content'].heading(column, text=column, anchor='center')
-                    self.form['content'].column(column, stretch="yes")
-                for index, row in self.content.iterrows():
-                    self.form['content'].insert("", "end", values=row.to_list())
-                self.active["records"] = len(self.content)
-                self.await_load = False
-            elif self.active['mode'].get() == 3:
-                self.load_content(ResultSet(self.active['location']))
-                self.form['content']['columns'] = self.content.data_frame.columns.to_list()
-                #self.content.data_frame.fillna('', inplace=True)
-                for column in self.content.data_frame.columns:
+                for column in self.content.df.columns:
                     self.form['content'].heading(column, text=column, anchor='center')
                     if 'id' in str(column).lower():
                         self.form['content'].column(column, stretch="no")
                     else:
                         self.form['content'].column(column, stretch="yes")
-                for index, row in self.content.data_frame.iterrows():
+                for index, row in self.content.df.iterrows():
                     self.form['content'].insert("", "end", values=row.to_list())
-                self.active["records"] = len(self.content.data_frame)
-                self.await_load = False
-            elif self.active['mode'].get() == 2:
-                no_files = 0
-                for dir_path, dir_names, file_names in os.walk(os.path.abspath(self.active['location'])):
-                    for current in file_names:
-                        a = SysMon()
-                        a.load(os.path.join(dir_path, current))
-                        if no_files < 1:
-                            self.content = ResultSet(a.content)  # TODO: need to test
-                            self.content.columns = ["description",]
-                        self.content[current] = a.data_frame.tail(1).transpose()
-                        # self.content.report()
-                        no_files += 1
-                        print('process', current)  # represents just one row in csv
-                print('Processed', no_files, 'files...')
-                self.active["records"] = no_files
-                self.await_load = False
             elif self.active['mode'].get() == 1:
                 self.form['content']['columns'] = ('section', 'statistic', 'current', 'measured')
-                self.load_content(SysMon())
-                self.content.load(self.active['location'])
                 self.form['content'].heading("section", text='Main section', anchor='w')
                 self.form['content'].column("section", stretch="no")
                 self.form['content'].heading("statistic", text='Main statistic', anchor='center')
                 self.form['content'].column("statistic", stretch="yes")
                 self.form['content'].heading("current", text='Current statistic', anchor='center')
                 self.form['content'].column("current", stretch="yes")
-                filename = self.content.source.split('/')[-1]
+                filename = self.active['location'].split('/')[-1]
                 self.form['content'].heading("measured", text='Measured value @' + filename, anchor='center')
                 self.form['content'].column("measured", stretch="yes")
                 for section, reported in self.content.dic.items():
@@ -186,55 +157,82 @@ class MainWindow:
                                 continue
                             self.form['content'].insert("", "end", values=[section, stat, definition + ' ' + key, measured])
                             i += 1
-                self.active["records"] = len(self.content.dic)
-                self.await_load = False
             elif self.active['mode'].get() == 0:
-                self.content = ErrLog(self.active['location']).dic
                 self.form['content']['columns'] = ('time', 'logged')
                 self.form['content'].heading("time", text='Log Time', anchor='w')
                 self.form['content'].column("time", stretch="no")
                 self.form['content'].heading("logged", text='Message', anchor='ne')
                 self.form['content'].column("logged", stretch="yes")
-                for timestamp, row in self.content.items():
+                for timestamp, row in self.content.dic.items():
                     self.form['content'].insert("", "end", values=[timestamp, '\n'.join(wrap(row, 150))])
-                self.active["records"] = len(self.content)
-                self.await_load = False
-            self.active['stats']['text'] = f'Total : {self.active["records"]} records'
 
-    def load_content(self, object_content):
-        if object_content:
-            self.content = object_content
-            self.original = {}
+    def load_content(self, debug=True):
+        if self.active['mode'].get() == 4:  # build result set
+            no_files = 0
+            for dir_path, dir_names, file_names in os.walk(os.path.abspath(self.active['location'])):
+                for current in file_names:
+                    a = ResultSet(os.path.join(dir_path, current))
+                    if no_files < 1:
+                        self.content = a.df.iloc[:,-3:-2]
+                        self.content.columns = ["description", ]
+                    self.content[a.time_stamp] = a.df.iloc[:,-1:]
+                    no_files += 1
+                    print('process', current, '- represents just one row in dataset')   
+            print('Processed', no_files, 'files...')
+        elif self.active['mode'].get() == 2:  # build sysmon set
+            no_files = 0
+            for dir_path, dir_names, file_names in os.walk(os.path.abspath(self.active['location'])):
+                for current in file_names:
+                    a = SysMon(os.path.join(dir_path, current))
+                    if no_files < 1:
+                        self.content = ResultSet(a.dic, direct=True)  
+                        self.content.columns = ["description",]
+                    else:
+                        print(self.content[current]) # = a.dic  # TODO: need to test .tail(1).transpose()
+                    no_files += 1
+                    print('process', current, '- represents just one row in dataset')  
+            self.active["records"] = no_files
+            print('Processed', no_files, 'files...')
+        elif self.active['mode'].get() == 3:
+            self.content = ResultSet(self.active['location'])
+        elif self.active['mode'].get() == 1:
+            self.content = SysMon(self.active['location'])
+        elif self.active['mode'].get() == 0:
+            self.content = ErrLog(self.active['location'])
+        #self.content.df.fillna('', inplace=True)
 
     def filter(self, string):  # TODO: repeating, need to use functions
-        if not string:
-            self.content = self.original
-        elif string != self.active['apply']:
+        if string != self.active['apply']:
             print('limit result set with', string, '/ previous value was', self.active['apply'])
             self.active['apply'] = string
-            self.form['content'].delete(*self.form['content'].get_children())
-            if not contains_vals(self.original):
-                self.original = self.content
+            self.form['content'].delete(*self.form['content'].get_children())  # clear the widget
+            # prepare content (stored in variable f)
             if self.active['mode'].get() == 4:
                 f = self.content[self.content['description'].str.lower().str.contains(string)]
+            elif self.active['mode'].get() == 3:
+                if any(self.content.df.columns) in string:
+                    f = self.content  # column filter mode
+                else:
+                    f = self.content.df
+            elif self.active['mode'].get() == 2:
+                f = self.content
+            elif self.active['mode'].get() == 1:
+                f = self.content
+            elif self.active['mode'].get() == 0:
+                f = {key:value for (key,value) in self.content.dic.items() if string in value}
+            # fill the widget with filtered data
+            if isinstance(f, dict):
+                for timestamp, row in f.items():
+                    self.form['content'].insert("", "end", values=[timestamp, '\n'.join(wrap(row, 150))])
+            elif len(string) < 1:
                 for index, row in f.iterrows():
                     self.form['content'].insert("", "end", values=row.to_list())
-            elif self.active['mode'].get() == 3:
-                if any(self.content.data_frame.columns) in string:
-                    print('column filter mdoe')
-                else:
-                    for index, row in self.content.data_frame.iterrows():
-                        if string in row:
-                            self.form['content'].insert("", "end", values=row.to_list())
-            elif self.active['mode'].get() == 2:
-                print('this mode not implemented for filtering')
-            elif self.active['mode'].get() == 1:
-                print('this mode not implemented for filtering')
-            elif self.active['mode'].get() == 0:
-                self.content = {key:value for (key,value) in self.content.items() if string in value}
-                for timestamp, row in self.content.items():
-                    self.form['content'].insert("", "end", values=[timestamp, '\n'.join(wrap(row, 150))])
-            self.active["records"] = len(self.content)
+            else:
+                for index, row in f.iterrows():
+                    if string in row:
+                        self.form['content'].insert("", "end", values=row.to_list())
+            # do a sum-up
+            self.active["records"] = len(f)
             self.active['stats']['text'] = f'Total : {self.active["records"]} records'
 
     def on_select(self, evt):
@@ -284,12 +282,18 @@ class MainWindow:
     def export(self):
         if self.active['mode'].get() in (2, 4):  # folder mode , plotting
             if self.form['content'].selection():
-                sel = int(self.form['content'].selection()[0][1:])
-                a = self.content.iloc[sel -1]
-                magic = a.to_frame()
-                magic.iloc[0].split(' ')[-1]
-                magic.plot(x=magic.index.values, y=magic[1])  #, kind='scatter')
-                magic.plot.line(y=magic[1])  #, kind='scatter')
+                sel = int(self.form['content'].selection()[0][1:], 16)  
+                magic = self.content.iloc[sel -1].to_frame()
+                serie_name = magic.iloc[0][magic.columns[-1]]
+                magic = magic[1:].astype('float')
+                #magic.astype(float)
+                magic.index.name = 'date'
+                magic.reset_index(inplace=True)
+                magic.rename(columns = {magic.columns[-1] : serie_name})  #, inplace=True)
+                magic[magic.columns[-1]].astype('float')
+                magic[magic.columns[-1]].plot()
+                #magic.plot(x=magic['date'], y=magic[magic.columns[-1]])  #, kind='scatter')
+                #magic.plot.line(y=magic[1])  #, kind='scatter')
                 plt.show()
             else:
                 print('please select a row')
