@@ -206,7 +206,8 @@ class MainWindow:
             self.form['content'].delete(*self.form['content'].get_children())  # clear the widget
             # prepare content (stored in variable f)
             if self.active['mode'].get() == 4:
-                f = self.content[self.content['description'].str.lower().str.contains(string)]
+                # TODO: dynamicaly load description - name may differ
+                f = self.content.df[self.content.df['description'].str.lower().str.contains(string)]
             elif self.active['mode'].get() == 3:
                 if any(self.content.df.columns) in string:
                     f = self.content  # column filter mode
@@ -292,7 +293,7 @@ class MainWindow:
                     magic[magic.columns[-1]].astype('float')
                     #magic[magic.columns[-1]].plot()
                     fig, ax = plt.subplots()
-                    ax.plot(magic['date'], magic[1])
+                    ax.plot(magic['date'], magic.iloc[:,-1:])
                     ax.set_xticks(magic['date'])
                     ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d %H:%M'))
                     ax.xaxis.set_minor_formatter(mdates.DateFormatter('%m/%d %H:%M'))
@@ -300,7 +301,7 @@ class MainWindow:
                     #magic.plot(x='date', y=magic.columns[-1], marker="*")
                     #magic.plot(x=magic['date'], y=magic[magic.columns[-1]])  #, kind='scatter')
                     #magic.plot.line(y=magic[1])  #, kind='scatter')
-                    plt.show(x_compat=True)
+                    plt.show()  #x_compat=True
             else:
                 print('please select a row')
         else:
