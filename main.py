@@ -18,6 +18,7 @@ except ImportError:
 # Matplotlib for viewing
 try:
     import matplotlib.pyplot as plt
+    import matplotlib.dates as mdates
     print('... matplotlib imported, graphing can be done')
     can_graph = True
 except ImportError:
@@ -113,20 +114,17 @@ class MainWindow:
             self.form['content'].delete(*self.form['content'].get_children())  # clear the form
             self.load_content()  # load content based on mode
             try:
-                if self.content.df:
-                    self.active["records"] = len(self.content.df)  # count number of records in data frame
-                else:
-                    self.active["records"] = len(self.content)  # count number of records in data frame
+                self.active["records"] = len(self.content.df)  # count number of records in data frame
             except AttributeError:
                 self.active["records"] = len(self.content)  # count number of records in data frame
             except:
-                print('what goues here, need to debug')
+                print('what goes here, need to debug')
             self.active['stats']['text'] = f'Total : {self.active["records"]} records'
             self.await_load = False  # flag for initialize
 
             #final step is to fill the values to the form - 1. columns, 2. content
             if self.active['mode'].get() in (2, 3, 4):
-                self.form['content']['columns'] = self.content.columns.to_list()
+                self.form['content']['columns'] = self.content.df.columns.to_list()
                 for column in self.content.df.columns:
                     self.form['content'].heading(column, text=column, anchor='center')
                     if 'id' in str(column).lower():
@@ -173,9 +171,9 @@ class MainWindow:
                 for current in file_names:
                     a = ResultSet(os.path.join(dir_path, current))
                     if no_files < 1:
-                        self.content = a.df.iloc[:,-3:-2]
-                        self.content.columns = ["description", ]
-                    self.content[a.time_stamp] = a.df.iloc[:,-1:]
+                        self.content = ResultSet(a.df.iloc[:,-3:-2].transpose().to_dict(), direct=True)
+                        self.content.df.columns = ["description", ]
+                    self.content.df[a.time_stamp] = a.df.iloc[:,-1:]
                     no_files += 1
                     print('process', current, '- represents just one row in dataset')   
             print('Processed', no_files, 'files...')
@@ -282,19 +280,27 @@ class MainWindow:
     def export(self):
         if self.active['mode'].get() in (2, 4):  # folder mode , plotting
             if self.form['content'].selection():
-                sel = int(self.form['content'].selection()[0][1:], 16)  
-                magic = self.content.iloc[sel -1].to_frame()
-                serie_name = magic.iloc[0][magic.columns[-1]]
-                magic = magic[1:].astype('float')
-                #magic.astype(float)
-                magic.index.name = 'date'
-                magic.reset_index(inplace=True)
-                magic.rename(columns = {magic.columns[-1] : serie_name})  #, inplace=True)
-                magic[magic.columns[-1]].astype('float')
-                magic[magic.columns[-1]].plot()
-                #magic.plot(x=magic['date'], y=magic[magic.columns[-1]])  #, kind='scatter')
-                #magic.plot.line(y=magic[1])  #, kind='scatter')
-                plt.show()
+                if can_graph:
+                    sel = int(self.form['content'].selection()[0][1:], 16)  
+                    magic = self.content.df.iloc[sel -1].to_frame()
+                    serie_name = magic.iloc[0][magic.columns[-1]]
+                    magic = magic[1:].astype('float')
+                    #magic.astype(float)
+                    magic.index.name = 'date'
+                    magic.reset_index(inplace=True)
+                    magic.rename(columns = {magic.columns[-1] : serie_name})  #, inplace=True)
+                    magic[magic.columns[-1]].astype('float')
+                    #magic[magic.columns[-1]].plot()
+                    fig, ax = plt.subplots()
+                    ax.plot(magic['date'], magic[1])
+                    ax.set_xticks(magic['date'])
+                    ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d %H:%M'))
+                    ax.xaxis.set_minor_formatter(mdates.DateFormatter('%m/%d %H:%M'))
+                    _=plt.xticks(rotation=90)
+                    #magic.plot(x='date', y=magic.columns[-1], marker="*")
+                    #magic.plot(x=magic['date'], y=magic[magic.columns[-1]])  #, kind='scatter')
+                    #magic.plot.line(y=magic[1])  #, kind='scatter')
+                    plt.show(x_compat=True)
             else:
                 print('please select a row')
         else:

@@ -63,7 +63,8 @@ class ResultSet:
                 self.df.tail(3).head(1).to_csv(csv, mode='w', encoding='utf-8', header=False)
                 self.df.tail(1).to_csv(csv, mode='a', encoding='utf-8', header=False)
         else:
-            self.df.to_csv(self.file_name+'.csv', mode='w', encoding='utf-8')
+            e = os.path.join(os.path.dirname(__file__), 'export.csv')
+            self.df.to_csv(e, mode='w', encoding='utf-8')
 
 
 class ErrLog:
