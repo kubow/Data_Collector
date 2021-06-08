@@ -8,7 +8,6 @@ try:
 except ImportError:
     print('!!! pandas library not found, cannot read csv and excel')
 
-
 # import sqlite3
 # import matplotlib.pyplot as mplt
 
@@ -20,7 +19,7 @@ class ResultSet:
     %header: indicator for header loading
     %direct: indicator for actual dataset usage
     """
-    def __init__(self, content='', sep=',', header=True, direct=False):
+    def __init__(self, content='', sep=',', header=True, direct=False, enc='utf-8'):
 
         if direct:  # has its own self.time_stamp coming from parent
             if isinstance(content, dict):
@@ -44,9 +43,9 @@ class ResultSet:
             elif '.xls' in content:
                 self.df = read_excel(content)
             elif '.csv' in content:
-                self.df = read_csv(content, sep=sep, header=0, na_filter=False)
+                self.df = read_csv(content, sep=sep, header=0, na_filter=False, encoding=enc)
             else:
-                self.df = read_fwf(content)
+                self.df = read_fwf(content, encoding=enc)
             print(f'... opened file {file_name} from {os.path.abspath(content)} (size: {os.path.getsize(content)} kb)')
         else:
             print('please provide a path to result set file')
@@ -360,6 +359,7 @@ def build_ts(ts_value=None):
     """build timestamp value from a given string ts_value
     expects > < >_< or no date time separator
     TODO: watch for more exotic separators
+    TODO: watch also for various date/time formats
     """ 
     try:
         ts_format = ''
@@ -369,11 +369,14 @@ def build_ts(ts_value=None):
             sep = '_'
         else:
             print('what is divider between date and time here?', ts_value)
-        if sep=='_' and not isinstance(ts_value.split(sep)[0], int):
-            ts_value = sep.join(ts_value.split(sep)[1:])  # cut-off forst part of string
-        med = ts_value.split(sep)
+            sep = ''
+        if sep == '_' or sep == ' ':   # leave only integer values
+            med = [part for part in ts_value.split(sep) if cast(part)]
         if len(med) == 2:
             ts_format = sep.join((fmt_ts(f_val=med[0]), fmt_ts(f_type='time', f_val=med[1])))
+        elif len(med) == 4:  # 1. year 2. month 3.day 4. timestamp
+            ts_value = '/'.join(med[:-1]) + sep + med[-1]
+            ts_format = sep.join((fmt_ts(f_val='/'.join(med[:-1])), fmt_ts(f_type='time', f_val=med[-1]))) 
         elif len(med) > 2:
             ts_value = sep.join(med.split(sep)[-2:])
             ts_format = sep.join((fmt_ts(f_val=med[0]), fmt_ts(f_type='time', f_val=med[1]))) 
@@ -417,5 +420,18 @@ def fmt_ts(f_type='date', f_val=''):
             elif len(f_val) == 2:
                 return '%H:%M'
         else:
-            return '%H%M'
+            if len(f_val) == 6:
+                return '%H%M%S'
+            elif len(f_val) == 4:
+                return '%H%M'
 
+def cast(this, ctype='int'):
+    try:
+        if ctype == 'int':
+            return int(this)
+        elif ctype == 'float':
+            return float(this)
+        else:
+            return this
+    except ValueError:
+        return None

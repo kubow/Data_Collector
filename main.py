@@ -102,13 +102,13 @@ class MainWindow:
         else:
             self.active['location'] = dialog.askopenfilename()
         if self.active['location']:
-            self.await_load = True
+            self.await_load = True  # magic flag
         else:
             if backup:
                 self.active['location'] = backup  # reverting to previous value
         self.refresh()            
 
-    def refresh(self):
+    def refresh(self):  # after every change in layout
         if self.await_load:
             self.form['location']['text'] = f'Location : {self.active["location"]}'
             self.form['content'].delete(*self.form['content'].get_children())  # clear the form
@@ -205,7 +205,7 @@ class MainWindow:
             self.active['apply'] = string
             self.form['content'].delete(*self.form['content'].get_children())  # clear the widget
             # prepare content (stored in variable f)
-            if self.active['mode'].get() == 4:
+            if self.active['mode'].get() in (4,2):
                 # TODO: dynamicaly load description - name may differ
                 f = self.content.df[self.content.df['description'].str.lower().str.contains(string)]
             elif self.active['mode'].get() == 3:
@@ -213,8 +213,6 @@ class MainWindow:
                     f = self.content  # column filter mode
                 else:
                     f = self.content.df
-            elif self.active['mode'].get() == 2:
-                f = self.content
             elif self.active['mode'].get() == 1:
                 f = self.content
             elif self.active['mode'].get() == 0:
@@ -223,13 +221,9 @@ class MainWindow:
             if isinstance(f, dict):
                 for timestamp, row in f.items():
                     self.form['content'].insert("", "end", values=[timestamp, '\n'.join(wrap(row, 150))])
-            elif len(string) < 1:
-                for index, row in f.iterrows():
-                    self.form['content'].insert("", "end", values=row.to_list())
             else:
                 for index, row in f.iterrows():
-                    if string in row:
-                        self.form['content'].insert("", "end", values=row.to_list())
+                    self.form['content'].insert("", "end", values=row.to_list())
             # do a sum-up
             self.active["records"] = len(f)
             self.active['stats']['text'] = f'Total : {self.active["records"]} records'
@@ -282,8 +276,11 @@ class MainWindow:
         if self.active['mode'].get() in (2, 4):  # folder mode , plotting
             if self.form['content'].selection():
                 if can_graph:
-                    sel = int(self.form['content'].selection()[0][1:], 16)  
-                    magic = self.content.df.iloc[sel -1].to_frame()
+                    # TODO: this is not working....
+                    #sel = int(self.form['content'].selection()[0][1:], 16)  
+                    sel = self.form['content'].item(self.form['content'].selection()[0])['values'][0]
+                    #magic = self.content.df.iloc[sel -1].to_frame()
+                    magic = ResultSet(sel).df
                     serie_name = magic.iloc[0][magic.columns[-1]]
                     magic = magic[1:].astype('float')
                     #magic.astype(float)
@@ -304,6 +301,29 @@ class MainWindow:
                     plt.show()  #x_compat=True
             else:
                 print('please select a row')
+        elif self.active['mode'].get() == 3:
+            i = 0  
+            for group in self.content.df[0].unique():  # transforming it to a CUBE by first field
+                if i < 1:
+                    a = self.content.df[self.content.df[0]==group].iloc[:,1:]
+                    c = {
+                        a.iloc[:,-1].name:str(group),
+                        a.iloc[:,-2].name:'description',
+                        a.iloc[:,1].name:'metric',
+                        a.iloc[:,0].name:'id'
+                    }
+                    a.rename(columns=c, inplace=True)
+                else:
+                    a[str(group)]=self.content.df[self.content.df[0]==group].iloc[:,-1].values
+                    a.rename(columns={a.iloc[:,-1].name:str(group)}, inplace=True)
+                i += 1
+            self.form['content'].delete(*self.form['content'].get_children())  # clear the form
+            self.form['content']['columns'] = tuple(a.columns)  #ititiate tree view with new column set
+            for col in a.columns:
+                self.form['content'].heading(f'{col}', text=f'{col}', anchor='center')
+                self.form['content'].column(f'{col}', stretch="yes")
+            for index, row in a.iterrows():  # fill it with transposed values
+                self.form['content'].insert("", "end", values=row.to_list())
         else:
             print('file mode magic ... what can be done here? report only upon errorlog?')
 
@@ -315,8 +335,9 @@ class MainWindow:
                 final_loc = dialog.asksaveasfile(mode='w', defaultextension=".csv")
             if self.active['location'] != final_loc and final_loc:
                 if self.active['mode'].get() in (2, 4):
-                    final_dataset = self.content.transpose()  #.loc[1:,-1]
-                    final_dataset.to_csv(final_loc, encoding='utf-8', header=False, index=True, line_terminator='\n', mode='w')
+                    final_dataset = self.content.df.transpose()  #.loc[1:,-1]
+                    #final_dataset.to_csv(final_loc, encoding='cp1252', header=False, index=True, line_terminator='\n', mode='w')
+                    final_dataset.to_csv(final_loc.name, encoding='utf-8', header=False, index=True, line_terminator='\n', mode='w')
                 else:
                     self.content.dic.merge(final_loc)
                     #self.content.dic.export(final_loc)
@@ -347,4 +368,5 @@ def data_collector():
     root.mainloop()
 
 if __name__ == '__main__':
+    #os.environ['NLS_LANG'] = '.AL32UTF8'
     data_collector()
