@@ -31,7 +31,7 @@ class ResultSet:
                 print(f'The loaded content is a type: {type(content)}, need to specify dataframe?')
         elif not direct and content:
             self.time_stamp = ''  # time stamp needs to be nulled
-            file_name = os.path.basename(content)  # primary check if timestamp in name of the file
+            file_name = os.path.basename(content)  # check if time value is in name of the file
             if any(chr.isdigit() for chr in file_name.split('.')[0]):
                 # TODO: SQL Anywhere specific ? Must be more conditions
                 self.time_stamp = build_ts(file_name.split('.')[0])
@@ -48,19 +48,24 @@ class ResultSet:
                 self.df = read_fwf(content, encoding=enc)
             print(f'... opened file {file_name} from {os.path.abspath(content)} (size: {os.path.getsize(content)} kb)')
         else:
-            print('please provide a path to result set file')
+            print('What would you like to do else?')
 
     def plot(self, index_row):
         if isinstance(self.df, DataFrame) and isinstance(index_row, int):
             self.df.plot(x=self.df.iloc[0], y=self.df.iloc[index_row])
 
-    def write_csv(self, csv=''):
-        if csv:
+    def write_csv(self, loc='', fn=''):
+        if loc and fn:
+            fn = os.path.basename(fn)
+            csv = os.path.join(loc, fn)
             if os.path.isfile(csv):  # do not append header in case file exist
                 self.df.tail(1).to_csv(csv, mode='a', encoding='utf-8', header=False)
             else:
-                self.df.tail(3).head(1).to_csv(csv, mode='w', encoding='utf-8', header=False)
-                self.df.tail(1).to_csv(csv, mode='a', encoding='utf-8', header=False)
+                if len(self.df) < 5:
+                    self.df.tail(3).head(1).to_csv(csv, mode='w', encoding='utf-8', header=False)
+                    self.df.tail(1).to_csv(csv, mode='a', encoding='utf-8', header=False)
+                else:
+                    self.df.transpose().to_csv(csv, mode='w', encoding='utf-8', header=True)
         else:
             e = os.path.join(os.path.dirname(__file__), 'export.csv')
             self.df.to_csv(e, mode='w', encoding='utf-8')
@@ -373,13 +378,14 @@ def build_ts(ts_value=None):
         if sep == '_' or sep == ' ':   # leave only integer values
             med = [part for part in ts_value.split(sep) if cast(part)]
         if len(med) == 2:
+            ts_value = sep.join(med)
             ts_format = sep.join((fmt_ts(f_val=med[0]), fmt_ts(f_type='time', f_val=med[1])))
         elif len(med) == 4:  # 1. year 2. month 3.day 4. timestamp
             ts_value = '/'.join(med[:-1]) + sep + med[-1]
             ts_format = sep.join((fmt_ts(f_val='/'.join(med[:-1])), fmt_ts(f_type='time', f_val=med[-1]))) 
         elif len(med) > 2:
             ts_value = sep.join(med.split(sep)[-2:])
-            ts_format = sep.join((fmt_ts(f_val=med[0]), fmt_ts(f_type='time', f_val=med[1]))) 
+            ts_format = sep.join((fmt_ts(f_val=med[0]), fmt_ts(f_type='time', f_val=med[1])))
     except:
         # print(sys.exc_info()[1])
         return ts_value
@@ -388,7 +394,6 @@ def build_ts(ts_value=None):
             return datetime.strptime(ts_value, ts_format)
         else:
             return ts_value
-
 
 def fmt_ts(f_type='date', f_val=''):
     """get format of a time/date given by:
@@ -426,6 +431,10 @@ def fmt_ts(f_type='date', f_val=''):
                 return '%H%M'
 
 def cast(this, ctype='int'):
+    '''Try to cast value
+    %this that can be any value
+    %ctype with specific type 
+    (by default integer)'''
     try:
         if ctype == 'int':
             return int(this)
@@ -434,4 +443,4 @@ def cast(this, ctype='int'):
         else:
             return this
     except ValueError:
-        return None
+        return False

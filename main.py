@@ -339,8 +339,21 @@ class MainWindow:
                     #final_dataset.to_csv(final_loc, encoding='cp1252', header=False, index=True, line_terminator='\n', mode='w')
                     final_dataset.to_csv(final_loc.name, encoding='utf-8', header=False, index=True, line_terminator='\n', mode='w')
                 else:
-                    self.content.dic.merge(final_loc)
-                    #self.content.dic.export(final_loc)
+                    final_dict = {}
+                    helper_dict = {}
+                    i = 0
+                    for col in self.form['content']['columns']:
+                        final_dict[col] = []
+                        helper_dict[i] = col
+                        i += 1
+                    for child in self.form['content'].get_children():
+                        i = 0
+                        for val in self.form['content'].item(child)['values']:
+                            final_dict[helper_dict[i]].append(val)
+                            i += 1
+                    ResultSet(final_dict, direct=True).write_csv(loc=final_loc, fn=self.active['location'])
+                    # self.content.dic.merge(final_loc)
+                    # self.content.dic.export(final_loc)
 
     def quit(self):
         self.master.destroy()
