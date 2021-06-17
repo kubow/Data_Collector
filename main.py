@@ -27,7 +27,7 @@ except ImportError:
 
 from DbContent import SysMon, ErrLog, ResultSet, contains_vals, move_record
 # from ToolTip import ToolTip
-
+x = '~.-:'  # special string for decorating
 
 class MainWindow:
     def __init__(self, master):
@@ -324,6 +324,7 @@ class MainWindow:
                 self.form['content'].column(f'{col}', stretch="yes")
             for index, row in a.iterrows():  # fill it with transposed values
                 self.form['content'].insert("", "end", values=row.to_list())
+            print(f'{x[0]*3} transforming data ')
         else:
             print('file mode magic ... what can be done here? report only upon errorlog?')
 

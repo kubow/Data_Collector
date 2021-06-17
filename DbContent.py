@@ -56,19 +56,19 @@ class ResultSet:
 
     def write_csv(self, loc='', fn=''):
         if loc and fn:
-            fn = os.path.basename(fn)
-            csv = os.path.join(loc, fn)
-            if os.path.isfile(csv):  # do not append header in case file exist
-                self.df.tail(1).to_csv(csv, mode='a', encoding='utf-8', header=False)
+            c = os.path.join(loc, os.path.basename(fn))
+            if os.path.isfile(c):  # do not append header in case file exist
+                self.df.tail(1).to_csv(c, mode='a', encoding='utf-8', header=False)
             else:
                 if len(self.df) < 5:
-                    self.df.tail(3).head(1).to_csv(csv, mode='w', encoding='utf-8', header=False)
-                    self.df.tail(1).to_csv(csv, mode='a', encoding='utf-8', header=False)
+                    self.df.tail(3).head(1).to_csv(c, mode='w', encoding='utf-8', header=False)
+                    self.df.tail(1).to_csv(c, mode='a', encoding='utf-8', header=False)
                 else:
-                    self.df.transpose().to_csv(csv, mode='w', encoding='utf-8', header=True)
+                    self.df.transpose().to_csv(c, mode='w', encoding='utf-8', header=True)
         else:
-            e = os.path.join(os.path.dirname(__file__), 'export.csv')
-            self.df.to_csv(e, mode='w', encoding='utf-8')
+            c = os.path.join(os.path.dirname(__file__), 'export.csv')
+            self.df.to_csv(c, mode='w', encoding='utf-8')
+        print(f'--- file {c} written')
 
 
 class ErrLog:
