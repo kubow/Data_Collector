@@ -103,66 +103,66 @@ class MainWindow:
             self.active['location'] = dialog.askopenfilename()
         if self.active['location']:
             self.await_load = True
-        else:
-            if backup:
-                self.active['location'] = backup  # reverting to previous value
+        elif backup:
+            self.active['location'] = backup  # reverting to previous value
         self.refresh()            
 
     def refresh(self):
-        if self.await_load:
-            self.form['location']['text'] = f'Location : {self.active["location"]}'
-            self.form['content'].delete(*self.form['content'].get_children())  # clear the form
-            self.load_content()  # load content based on mode
-            try:
-                self.active["records"] = len(self.content.df)  # count number of records in data frame
-            except AttributeError:
-                self.active["records"] = len(self.content)  # count number of records in data frame
-            except:
-                print('what goes here, need to debug')
-            self.active['stats']['text'] = f'Total : {self.active["records"]} records'
-            self.await_load = False  # flag for initialize
+        if not self.await_load:
+            return
+        self.form['location']['text'] = f'Location : {self.active["location"]}'
+        self.form['content'].delete(*self.form['content'].get_children())  # clear the form
+        self.load_content()  # load content based on mode
+        try:
+            self.active["records"] = len(self.content.df)  # count number of records in data frame
+        except AttributeError:
+            self.active["records"] = len(self.content)  # count number of records in data frame
+        except:
+            print('what goes here, need to debug')
+        self.active['stats']['text'] = f'Total : {self.active["records"]} records'
+        self.await_load = False  # flag for initialize
 
-            #final step is to fill the values to the form - 1. columns, 2. content
-            if self.active['mode'].get() in (2, 3, 4):
-                self.form['content']['columns'] = self.content.df.columns.to_list()
-                for column in self.content.df.columns:
-                    self.form['content'].heading(column, text=column, anchor='center')
-                    if 'id' in str(column).lower():
-                        self.form['content'].column(column, stretch="no")
-                    else:
-                        self.form['content'].column(column, stretch="yes")
-                for index, row in self.content.df.iterrows():
-                    self.form['content'].insert("", "end", values=row.to_list())
-            elif self.active['mode'].get() == 1:
-                self.form['content']['columns'] = ('section', 'statistic', 'current', 'measured')
-                self.form['content'].heading("section", text='Main section', anchor='w')
-                self.form['content'].column("section", stretch="no")
-                self.form['content'].heading("statistic", text='Main statistic', anchor='center')
-                self.form['content'].column("statistic", stretch="yes")
-                self.form['content'].heading("current", text='Current statistic', anchor='center')
-                self.form['content'].column("current", stretch="yes")
-                filename = self.active['location'].split('/')[-1]
-                self.form['content'].heading("measured", text='Measured value @' + filename, anchor='center')
-                self.form['content'].column("measured", stretch="yes")
-                for section, reported in self.content.dic.items():
-                    for stat, sub in reported.items():
-                        i = 0
-                        definition = ''
-                        for key, measured in sub.items():
-                            if i == 0:
-                                definition = measured
-                                i += 1
-                                continue
-                            self.form['content'].insert("", "end", values=[section, stat, definition + ' ' + key, measured])
+        #final step is to fill the values to the form - 1. columns, 2. content
+        if self.active['mode'].get() in (2, 3, 4):
+            self.form['content']['columns'] = self.content.df.columns.to_list()
+            for column in self.content.df.columns:
+                self.form['content'].heading(column, text=column, anchor='center')
+                if 'id' in str(column).lower():
+                    self.form['content'].column(column, stretch="no")
+                else:
+                    self.form['content'].column(column, stretch="yes")
+            for index, row in self.content.df.iterrows():
+                self.form['content'].insert("", "end", values=row.to_list())
+        elif self.active['mode'].get() == 1:
+            self.form['content']['columns'] = ('section', 'statistic', 'current', 'measured')
+            self.form['content'].heading("section", text='Main section', anchor='w')
+            self.form['content'].column("section", stretch="no")
+            self.form['content'].heading("statistic", text='Main statistic', anchor='center')
+            self.form['content'].column("statistic", stretch="yes")
+            self.form['content'].heading("current", text='Current statistic', anchor='center')
+            self.form['content'].column("current", stretch="yes")
+            filename = self.active['location'].split('/')[-1]
+            self.form['content'].heading("measured", text='Measured value @' + filename, anchor='center')
+            self.form['content'].column("measured", stretch="yes")
+            for section, reported in self.content.dic.items():
+                for stat, sub in reported.items():
+                    i = 0
+                    definition = ''
+                    for key, measured in sub.items():
+                        if i == 0:
+                            definition = measured
                             i += 1
-            elif self.active['mode'].get() == 0:
-                self.form['content']['columns'] = ('time', 'logged')
-                self.form['content'].heading("time", text='Log Time', anchor='w')
-                self.form['content'].column("time", stretch="no")
-                self.form['content'].heading("logged", text='Message', anchor='ne')
-                self.form['content'].column("logged", stretch="yes")
-                for timestamp, row in self.content.dic.items():
-                    self.form['content'].insert("", "end", values=[timestamp, '\n'.join(wrap(row, 150))])
+                            continue
+                        self.form['content'].insert("", "end", values=[section, stat, definition + ' ' + key, measured])
+                        i += 1
+        elif self.active['mode'].get() == 0:
+            self.form['content']['columns'] = ('time', 'logged')
+            self.form['content'].heading("time", text='Log Time', anchor='w')
+            self.form['content'].column("time", stretch="no")
+            self.form['content'].heading("logged", text='Message', anchor='ne')
+            self.form['content'].column("logged", stretch="yes")
+            for timestamp, row in self.content.dic.items():
+                self.form['content'].insert("", "end", values=[timestamp, '\n'.join(wrap(row, 150))])
 
     def load_content(self, debug=True):
         if self.active['mode'].get() == 4:  # build result set
@@ -200,39 +200,38 @@ class MainWindow:
         #self.content.df.fillna('', inplace=True)
 
     def filter(self, string):  # TODO: repeating, need to use functions
-        if string != self.active['apply']:
-            print('limit result set with', string, '/ previous value was', self.active['apply'])
-            self.active['apply'] = string
-            self.form['content'].delete(*self.form['content'].get_children())  # clear the widget
+        if string == self.active['apply']:
+            return
+
+        print('limit result set with', string, '/ previous value was', self.active['apply'])
+        self.active['apply'] = string
+        self.form['content'].delete(*self.form['content'].get_children())  # clear the widget
             # prepare content (stored in variable f)
-            if self.active['mode'].get() == 4:
-                # TODO: dynamicaly load description - name may differ
-                f = self.content.df[self.content.df['description'].str.lower().str.contains(string)]
-            elif self.active['mode'].get() == 3:
-                if any(self.content.df.columns) in string:
-                    f = self.content  # column filter mode
-                else:
-                    f = self.content.df
-            elif self.active['mode'].get() == 2:
-                f = self.content
-            elif self.active['mode'].get() == 1:
-                f = self.content
-            elif self.active['mode'].get() == 0:
-                f = {key:value for (key,value) in self.content.dic.items() if string in value}
-            # fill the widget with filtered data
-            if isinstance(f, dict):
-                for timestamp, row in f.items():
-                    self.form['content'].insert("", "end", values=[timestamp, '\n'.join(wrap(row, 150))])
-            elif len(string) < 1:
-                for index, row in f.iterrows():
+        if self.active['mode'].get() == 4:
+            # TODO: dynamicaly load description - name may differ
+            f = self.content.df[self.content.df['description'].str.lower().str.contains(string)]
+        elif self.active['mode'].get() == 3:
+            f = self.content if any(self.content.df.columns) in string else self.content.df
+        elif self.active['mode'].get() == 2:
+            f = self.content
+        elif self.active['mode'].get() == 1:
+            f = self.content
+        elif self.active['mode'].get() == 0:
+            f = {key:value for (key,value) in self.content.dic.items() if string in value}
+        # fill the widget with filtered data
+        if isinstance(f, dict):
+            for timestamp, row in f.items():
+                self.form['content'].insert("", "end", values=[timestamp, '\n'.join(wrap(row, 150))])
+        elif len(string) < 1:
+            for index, row in f.iterrows():
+                self.form['content'].insert("", "end", values=row.to_list())
+        else:
+            for index, row in f.iterrows():
+                if string in row:
                     self.form['content'].insert("", "end", values=row.to_list())
-            else:
-                for index, row in f.iterrows():
-                    if string in row:
-                        self.form['content'].insert("", "end", values=row.to_list())
-            # do a sum-up
-            self.active["records"] = len(f)
-            self.active['stats']['text'] = f'Total : {self.active["records"]} records'
+        # do a sum-up
+        self.active["records"] = len(f)
+        self.active['stats']['text'] = f'Total : {self.active["records"]} records'
 
     def on_select(self, evt):
         w = evt.widget
@@ -252,17 +251,12 @@ class MainWindow:
     def prev(self):
         if contains_vals(self.content):
             self.active['index'] = move_record(self.content, self.active['index'], up=False)
-        else:
-            if self.active['index'] > 1:
-                self.active['index'] -= 1
+        elif self.active['index'] > 1:
+            self.active['index'] -= 1
 
     def next(self):
-        if self.content:
-            if not self.content.empty:
-                self.active['index'] += 1
-        elif self.content:
-            if self.active['index'] < len(self.content.dic):
-                self.active['index'] += 1
+        if self.content and not self.content.empty:
+            self.active['index'] += 1
 
     def control(self):
         if (self.contacts_list.curselection()[0]+1) < len(self.content.dic):
