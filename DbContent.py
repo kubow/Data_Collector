@@ -43,7 +43,8 @@ class ResultSet:
             elif '.xls' in content:
                 self.df = read_excel(content)
             elif '.csv' in content:
-                self.df = read_csv(content, sep=sep, header=0, na_filter=False, encoding=enc)
+                # self.df = read_csv(content, sep=sep, header=0, na_filter=False, encoding=enc)
+                self.df = read_csv(content, sep=sep, header=0, na_filter=False, encoding='unicode_escape', engine='python')
             else:
                 self.df = read_fwf(content, encoding=enc)
             print(f'... opened file {file_name} from {os.path.abspath(content)} (size: {os.path.getsize(content)} kb)')
