@@ -301,8 +301,7 @@ class MainWindow:
             else:
                 print('please select a row')
         elif self.active['mode'].get() == 3:
-            i = 0  
-            for group in self.content.df[0].unique():  # transforming it to a CUBE by first field
+            for i, group in enumerate(self.content.df[0].unique()):  # transforming it to a CUBE by first field
                 if i < 1:
                     a = self.content.df[self.content.df[0]==group].iloc[:,1:]
                     c = {
@@ -315,7 +314,6 @@ class MainWindow:
                 else:
                     a[str(group)]=self.content.df[self.content.df[0]==group].iloc[:,-1].values
                     a.rename(columns={a.iloc[:,-1].name:str(group)}, inplace=True)
-                i += 1
             self.form['content'].delete(*self.form['content'].get_children())  # clear the form
             self.form['content']['columns'] = tuple(a.columns)  #ititiate tree view with new column set
             for col in a.columns:

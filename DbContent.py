@@ -24,12 +24,12 @@ class ResultSet:
         if direct:  # has its own self.time_stamp coming from parent
             if isinstance(content, dict):
                 self.df = DataFrame.from_dict(content, orient='index')
-            elif isinstance(content, list) or isinstance(content, tuple):
+            elif isinstance(content, (list, tuple)):
                 self.df = DataFrame(content, index=[0])
             else:
                 self.df = DataFrame(content)
                 print(f'The loaded content is a type: {type(content)}, need to specify dataframe?')
-        elif not direct and content:
+        elif content:
             self.time_stamp = ''  # time stamp needs to be nulled
             file_name = os.path.basename(content)  # check if time value is in name of the file
             if any(chr.isdigit() for chr in file_name.split('.')[0]):
@@ -60,12 +60,11 @@ class ResultSet:
             c = os.path.join(loc, os.path.basename(fn))
             if os.path.isfile(c):  # do not append header in case file exist
                 self.df.tail(1).to_csv(c, mode='a', encoding='utf-8', header=False)
+            elif len(self.df) < 5:
+                self.df.tail(3).head(1).to_csv(c, mode='w', encoding='utf-8', header=False)
+                self.df.tail(1).to_csv(c, mode='a', encoding='utf-8', header=False)
             else:
-                if len(self.df) < 5:
-                    self.df.tail(3).head(1).to_csv(c, mode='w', encoding='utf-8', header=False)
-                    self.df.tail(1).to_csv(c, mode='a', encoding='utf-8', header=False)
-                else:
-                    self.df.transpose().to_csv(c, mode='w', encoding='utf-8', header=True)
+                self.df.transpose().to_csv(c, mode='w', encoding='utf-8', header=True)
         else:
             c = os.path.join(os.path.dirname(__file__), 'export.csv')
             self.df.to_csv(c, mode='w', encoding='utf-8')
@@ -186,7 +185,6 @@ class SysMon:
                         self.counter['section_lines'] = 0
                         flag['subsection'] = False
                         sec = Section()
-                    self.counter['lines'] += 1
                 else:  # load everything in between
                     self.counter['section_lines'] += 1  # secondary section counter in advance
                     if self.counter['lines'] == 1:
@@ -201,7 +199,8 @@ class SysMon:
                             self.server_name = line.split('   ')[-1]
                     else:
                         sec.content[self.counter['section_lines']] = {'line': [x.strip() for x in line.split('  ') if x]}
-                    self.counter['lines'] += 1
+
+                self.counter['lines'] += 1
 
     def report(self, location, file_type='csv'):
         print('*********', self.report_name, '(', self.server_name, '@', self.time_stamp, ')', '***********')
@@ -213,7 +212,7 @@ class SysMon:
                 if self.wh:
                     header = ['timestamp', ]
                     for section, stats in self.dic.items():  # column name reporter
-                        if not any(s in section for s in omit_sections):
+                        if all(s not in section for s in omit_sections):
                             for statistic, stat_detail in stats.items():
                                 self.counter['items'] = 1
                                 for stat_value, data_value in stat_detail.items():
@@ -224,7 +223,7 @@ class SysMon:
                     cswrt.writerow(header)
                 data = [self.time_stamp, ]
                 for section, stats in self.dic.items():
-                    if not any(s in section for s in omit_sections):
+                    if all(s not in section for s in omit_sections):
                         for statistic, stat_detail in stats.items():
                             self.counter['items'] = 1
                             for stat_value, data_value in stat_detail.items():
@@ -243,7 +242,7 @@ class SysMon:
                 else:
                     stream.write('[{{' + item.format('date', self.time_stamp))
                 for section, stats in self.dic.items():
-                    if not any(s in section for s in omit_sections):
+                    if all(s not in section for s in omit_sections):
                         for statistic, stat_detail in stats.items():
                             self.counter['internal'] = 1
                             for stat_value, data_value in stat_detail.items():
@@ -323,10 +322,7 @@ class Section:
                     self.header = self.content[i]['line']
             elif self.content[i]['indicate'] == 'summary':
                 self.stat[self.header[0]] = dict(zip(self.header, map(str, self.content[i]['line'])))
-        if len(self.stat) > 0:
-            return True
-        else:
-            return False
+        return len(self.stat) > 0
 
 
 def contains_vals(variable):
@@ -337,29 +333,16 @@ def contains_vals(variable):
     - dictionary
     TODO: check also simple variables in last step
     """   
-    if isinstance(variable, DataFrame):  
-        if variable.empty:
-            return False
-        else:
-            return True
-    elif variable:
-        return True
-    else:
-        return False
+    return bool(
+        (not isinstance(variable, DataFrame) or not variable.empty)
+        and (isinstance(variable, DataFrame) or variable)
+    )
 
 def move_record(variable, active, up=True):
     if isinstance(variable, DataFrame) and not variable.empty:
-        if up:
-            return True
-        else:
-            return False
-    else:  # all other variable types
-        if up:
-            if active < len(variable):
-                return True
-        else:
-            if len(variable) < active:
-                return True
+        return bool(up)
+    if up and active < len(variable) or not up and len(variable) < active:
+        return True
 
 def build_ts(ts_value=None):
     """build timestamp value from a given string ts_value
@@ -376,7 +359,7 @@ def build_ts(ts_value=None):
         else:
             print('what is divider between date and time here?', ts_value)
             sep = ''
-        if sep == '_' or sep == ' ':   # leave only integer values
+        if sep in ['_', ' ']:   # leave only integer values
             med = [part for part in ts_value.split(sep) if cast(part)]
         if len(med) == 2:
             ts_value = sep.join(med)
@@ -425,11 +408,10 @@ def fmt_ts(f_type='date', f_val=''):
                 return '%H:%M:%S'
             elif len(f_val) == 2:
                 return '%H:%M'
-        else:
-            if len(f_val) == 6:
-                return '%H%M%S'
-            elif len(f_val) == 4:
-                return '%H%M'
+        elif len(f_val) == 6:
+            return '%H%M%S'
+        elif len(f_val) == 4:
+            return '%H%M'
 
 def cast(this, ctype='int'):
     '''Try to cast value
