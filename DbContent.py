@@ -217,7 +217,7 @@ class SysMon:
                                 self.counter['items'] = 1
                                 for stat_value, data_value in stat_detail.items():
                                     if self.counter['items'] > 1:
-                                        header.append(section + ' ' + statistic + ' ' + stat_value)
+                                        header.append(f'{section} {statistic} {stat_value}')
                                     self.counter['items'] += 1
                     self.counter['columns'] = len(header)
                     cswrt.writerow(header)
@@ -230,7 +230,7 @@ class SysMon:
                                 if self.counter['items'] > 1:
                                     data.append(data_value.replace('% ', '').replace('.', ','))
                                 self.counter['items'] += 1
-                print(str(len(data)), 'items in row / vs', str(self.counter['columns']), 'column names')
+                print(len(data), 'items in row / vs', self.counter['columns'], 'column names')
                 cswrt.writerow(data)
         elif file_type == 'json':
             # this is desired structure: [{'date': 'YYYY-mm-dd HH:MM:SS', 'var1': 'var1', ...}, {...}, ...]
@@ -374,10 +374,7 @@ def build_ts(ts_value=None):
         # print(sys.exc_info()[1])
         return ts_value
     finally:
-        if ts_format:
-            return datetime.strptime(ts_value, ts_format)
-        else:
-            return ts_value
+        return datetime.strptime(ts_value, ts_format) if ts_format else ts_value
 
 def fmt_ts(f_type='date', f_val=''):
     """get format of a time/date given by:
