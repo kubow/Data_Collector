@@ -126,7 +126,7 @@ class ErrLog:
                         if backup and backup == timestamp:
                             self.dic[timestamp] += '\n'+' '.join(line[2:])
                         else:
-                            self.dic[timestamp] = ' '.join(line[2:]) 
+                            self.dic[timestamp] = ' '.join(line[2:])
         except IndexError:
             self.dic[timestamp] += '\n'+' '.join(line)  # this case appending to content
         except UnicodeDecodeError:
@@ -145,7 +145,7 @@ class ErrLog:
                 self.process_lines(file, self.options["enc"]["avail"][2])
             else:
                 print('no other values for encoding')
-        except:
+        except Exception:
             print(sys.exc_info()[0])  # exception add out of 
         finally:
             if timestamp:
@@ -370,7 +370,7 @@ def build_ts(ts_value=None):
         elif len(med) > 2:
             ts_value = sep.join(med.split(sep)[-2:])
             ts_format = sep.join((fmt_ts(f_val=med[0]), fmt_ts(f_type='time', f_val=med[1])))
-    except:
+    except Exception:
         # print(sys.exc_info()[1])
         return ts_value
     finally:
