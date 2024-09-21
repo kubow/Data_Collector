@@ -8,17 +8,20 @@ try:
     import Tkinter as tk
     import Tkinter.filedialog as dialog
     import Tkinter.ttk as ttk
+
     print('... using big tkinter (linux way)')
 except ImportError:
     import tkinter as tk
     import tkinter.filedialog as dialog
     import tkinter.ttk as ttk
+
     print('... using small tkinter (windows way)')
 
 # Matplotlib for viewing
 try:
     import matplotlib.pyplot as plt
     import matplotlib.dates as mdates
+
     print('... matplotlib imported, graphing can be done')
     can_graph = True
 except ImportError:
@@ -26,8 +29,10 @@ except ImportError:
     can_graph = False
 
 from DbContent import SysMon, ErrLog, ResultSet, contains_vals, move_record
+
 # from ToolTip import ToolTip
 x = '~.-:'  # special string for decorating
+
 
 class MainWindow:
     def __init__(self, master):
@@ -48,22 +53,27 @@ class MainWindow:
         self.content = {}  # this is main content in the form (searchable and exportable)
         self.original = {}
         # self.active['filter'].trace('w', self.filter)  # bind filter input with callback 
-        
+
         # ===================== (Main Menu + controls) same for every layout
         self.form['location'] = tk.Label(self.master, text=f'Location : {self.active["location"]}')
-        self.mode_opts['mode1'] = tk.Radiobutton(self.master, text='Errorlog viewer', value=0, variable=self.active['mode'], command=self.sm)
-        self.mode_opts['mode2'] = tk.Radiobutton(self.master, text='Sysmon file viewer', value=1, variable=self.active['mode'], command=self.sm)
-        self.mode_opts['mode3'] = tk.Radiobutton(self.master, text='Sysmon directory viewer', value=2, variable=self.active['mode'], command=self.sm)
-        self.mode_opts['mode4'] = tk.Radiobutton(self.master, text='Resultset viewer', value=3, variable=self.active['mode'], command=self.sm)
-        self.mode_opts['mode5'] = tk.Radiobutton(self.master, text='Resultset directory viewer', value=4, variable=self.active['mode'], command=self.sm)
-        
+        self.mode_opts['mode1'] = tk.Radiobutton(self.master, text='Errorlog viewer', value=0,
+                                                 variable=self.active['mode'], command=self.sm)
+        self.mode_opts['mode2'] = tk.Radiobutton(self.master, text='Sysmon file viewer', value=1,
+                                                 variable=self.active['mode'], command=self.sm)
+        self.mode_opts['mode3'] = tk.Radiobutton(self.master, text='Sysmon directory viewer', value=2,
+                                                 variable=self.active['mode'], command=self.sm)
+        self.mode_opts['mode4'] = tk.Radiobutton(self.master, text='Resultset viewer', value=3,
+                                                 variable=self.active['mode'], command=self.sm)
+        self.mode_opts['mode5'] = tk.Radiobutton(self.master, text='Resultset directory viewer', value=4,
+                                                 variable=self.active['mode'], command=self.sm)
+
         self.form['location'].grid(row=0, column=0, columnspan=3, sticky='we')
         self.mode_opts['mode1'].grid(row=0, column=3)
         self.mode_opts['mode2'].grid(row=0, column=4)
         self.mode_opts['mode3'].grid(row=0, column=5)
         self.mode_opts['mode4'].grid(row=0, column=6)
         self.mode_opts['mode5'].grid(row=0, column=7)
-        
+
         # ===================== (Button Menu) same for every layout
         self.btn['inpt'] = tk.Entry(self.master, width=1, textvariable=self.active['filter'], justify='center')
         self.btn['open'] = tk.Button(self.master, text='open', command=self.sm)
@@ -79,7 +89,7 @@ class MainWindow:
         self.btn['save'].grid(row=1, column=5, pady=5, sticky='nsew')
         self.btn['next'].grid(row=1, column=6, pady=5, sticky='nsew')
         self.btn['exit'].grid(row=1, column=7, pady=5, sticky='nsew')
-        self.btn['inpt'].bind('<Key>',self.on_select)
+        self.btn['inpt'].bind('<Key>', self.on_select)
 
         # ===================== (Fields list) differs with each mode
         self.form['content'] = ttk.Treeview(master, show='headings', selectmode='browse', height=4)
@@ -94,7 +104,7 @@ class MainWindow:
         self.active['stats'] = tk.Label(self.master, text=f'Total : {self.active["records"]} records')
         self.active['stats'].grid(row=14, column=0, columnspan=8, sticky='we')
         self.refresh()
-        
+
     def sm(self):  # sWITCH mODE
         backup = self.active['location']
         if self.active['mode'].get() in (2, 4):
@@ -105,7 +115,7 @@ class MainWindow:
             self.await_load = True  # magic flag
         elif backup:
             self.active['location'] = backup  # reverting to previous value
-        self.refresh()            
+        self.refresh()
 
     def refresh(self):  # after every change in layout
         if not self.await_load:
@@ -171,11 +181,11 @@ class MainWindow:
                 for current in file_names:
                     a = ResultSet(os.path.join(dir_path, current))
                     if no_files < 1:
-                        self.content = ResultSet(a.df.iloc[:,-3:-2].transpose().to_dict(), direct=True)
+                        self.content = ResultSet(a.df.iloc[:, -3:-2].transpose().to_dict(), direct=True)
                         self.content.df.columns = ["description", ]
-                    self.content.df[a.time_stamp] = a.df.iloc[:,-1:]
+                    self.content.df[a.time_stamp] = a.df.iloc[:, -1:]
                     no_files += 1
-                    print('process', current, '- represents just one row in dataset')   
+                    print('process', current, '- represents just one row in dataset')
             print('Processed', no_files, 'files...')
         elif self.active['mode'].get() == 2:  # build sysmon set
             no_files = 0
@@ -183,12 +193,12 @@ class MainWindow:
                 for current in file_names:
                     a = SysMon(os.path.join(dir_path, current))
                     if no_files < 1:
-                        self.content = ResultSet(a.dic, direct=True)  
-                        self.content.columns = ["description",]
+                        self.content = ResultSet(a.dic, direct=True)
+                        self.content.columns = ["description", ]
                     else:
-                        print(self.content[current]) # = a.dic  # TODO: need to test .tail(1).transpose()
+                        print(self.content[current])  # = a.dic  # TODO: need to test .tail(1).transpose()
                     no_files += 1
-                    print('process', current, '- represents just one row in dataset')  
+                    print('process', current, '- represents just one row in dataset')
             self.active["records"] = no_files
             print('Processed', no_files, 'files...')
         elif self.active['mode'].get() == 3:
@@ -197,7 +207,7 @@ class MainWindow:
             self.content = SysMon(self.active['location'])
         elif self.active['mode'].get() == 0:
             self.content = ErrLog(self.active['location'])
-        #self.content.df.fillna('', inplace=True)
+        # self.content.df.fillna('', inplace=True)
 
     def filter(self, string):  # TODO: repeating, need to use functions
         if string == self.active['apply']:
@@ -206,9 +216,9 @@ class MainWindow:
         print('limit result set with', string, '/ previous value was', self.active['apply'])
         self.active['apply'] = string
         self.form['content'].delete(*self.form['content'].get_children())  # clear the widget
-            # prepare content (stored in variable f)
+        # prepare content (stored in variable f)
         if self.active['mode'].get() == 4:
-            # TODO: dynamicaly load description - name may differ
+            # TODO: dynamically load description - name may differ
             f = self.content.df[self.content.df['description'].str.lower().str.contains(string)]
         elif self.active['mode'].get() == 3:
             f = self.content if any(self.content.df.columns) in string else self.content.df
@@ -217,7 +227,7 @@ class MainWindow:
         elif self.active['mode'].get() == 1:
             f = self.content
         elif self.active['mode'].get() == 0:
-            f = {key:value for (key,value) in self.content.dic.items() if string in value}
+            f = {key: value for (key, value) in self.content.dic.items() if string in value}
         # fill the widget with filtered data
         if isinstance(f, dict):
             for timestamp, row in f.items():
@@ -244,7 +254,7 @@ class MainWindow:
                 # TODO: need to change a lot more
         elif w == self.btn['inpt']:  # type in the input box
             if self.btn['inpt'].get():
-                self.master.after(1000,lambda: self.filter(self.btn['inpt'].get()))
+                self.master.after(1000, lambda: self.filter(self.btn['inpt'].get()))
         self.refresh()
 
     # move_record from DbContent is not ready
@@ -259,16 +269,15 @@ class MainWindow:
             self.active['index'] += 1
 
     def control(self):
-        if (self.contacts_list.curselection()[0]+1) < len(self.content.dic):
-
+        if (self.contacts_list.curselection()[0] + 1) < len(self.content.dic):
             self.form['f1_inp'].delete(0, 'end')
             self.form['f2_inp'].delete(0, 'end')
-            print('Setting', str(self.contacts_list.curselection()[0]+1), '>', str(self.active['index']), 'record')
+            print('Setting', str(self.contacts_list.curselection()[0] + 1), '>', str(self.active['index']), 'record')
             self.contacts_list.selection_clear(0, "end")
-            self.contacts_list.selection_set(int(self.active['index'])-1)
-            self.contacts_list.see(int(self.active['index'])-1)
-            self.contacts_list.activate(int(self.active['index'])-1)
-            self.contacts_list.selection_anchor(int(self.active['index'])-1)
+            self.contacts_list.selection_set(int(self.active['index']) - 1)
+            self.contacts_list.see(int(self.active['index']) - 1)
+            self.contacts_list.activate(int(self.active['index']) - 1)
+            self.contacts_list.selection_anchor(int(self.active['index']) - 1)
             # self.contacts_list.select_set(int(self.active['index'])-1)
             # self.contacts_list.event_generate("<<ListboxSelect>>")
 
@@ -277,52 +286,52 @@ class MainWindow:
             if self.form['content'].selection():
                 if can_graph:
                     # TODO: this is not working....
-                    #sel = int(self.form['content'].selection()[0][1:], 16)  
+                    # sel = int(self.form['content'].selection()[0][1:], 16)
                     sel = self.form['content'].item(self.form['content'].selection()[0])['values'][0]
-                    #magic = self.content.df.iloc[sel -1].to_frame()
+                    # magic = self.content.df.iloc[sel -1].to_frame()
                     magic = ResultSet(sel).df
                     serie_name = magic.iloc[0][magic.columns[-1]]
                     magic = magic[1:].astype('float')
-                    #magic.astype(float)
+                    # magic.astype(float)
                     magic.index.name = 'date'
                     magic.reset_index(inplace=True)
-                    magic.rename(columns = {magic.columns[-1] : serie_name})  #, inplace=True)
+                    magic.rename(columns={magic.columns[-1]: serie_name})  #, inplace=True)
                     magic[magic.columns[-1]].astype('float')
-                    #magic[magic.columns[-1]].plot()
+                    # magic[magic.columns[-1]].plot()
                     fig, ax = plt.subplots()
-                    ax.plot(magic['date'], magic.iloc[:,-1:])
+                    ax.plot(magic['date'], magic.iloc[:, -1:])
                     ax.set_xticks(magic['date'])
                     ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d %H:%M'))
                     ax.xaxis.set_minor_formatter(mdates.DateFormatter('%m/%d %H:%M'))
-                    _=plt.xticks(rotation=90)
-                    #magic.plot(x='date', y=magic.columns[-1], marker="*")
-                    #magic.plot(x=magic['date'], y=magic[magic.columns[-1]])  #, kind='scatter')
-                    #magic.plot.line(y=magic[1])  #, kind='scatter')
-                    plt.show()  #x_compat=True
+                    _ = plt.xticks(rotation=90)
+                    # magic.plot(x='date', y=magic.columns[-1], marker="*")
+                    # magic.plot(x=magic['date'], y=magic[magic.columns[-1]])  #, kind='scatter')
+                    # magic.plot.line(y=magic[1])  #, kind='scatter')
+                    plt.show()  # x_compat=True
             else:
                 print('please select a row')
         elif self.active['mode'].get() == 3:
             for i, group in enumerate(self.content.df[0].unique()):  # transforming it to a CUBE by first field
                 if i < 1:
-                    a = self.content.df[self.content.df[0]==group].iloc[:,1:]
+                    a = self.content.df[self.content.df[0] == group].iloc[:, 1:]
                     c = {
-                        a.iloc[:,-1].name:str(group),
-                        a.iloc[:,-2].name:'description',
-                        a.iloc[:,1].name:'metric',
-                        a.iloc[:,0].name:'id'
+                        a.iloc[:, -1].name: str(group),
+                        a.iloc[:, -2].name: 'description',
+                        a.iloc[:, 1].name: 'metric',
+                        a.iloc[:, 0].name: 'id'
                     }
                     a.rename(columns=c, inplace=True)
                 else:
-                    a[str(group)]=self.content.df[self.content.df[0]==group].iloc[:,-1].values
-                    a.rename(columns={a.iloc[:,-1].name:str(group)}, inplace=True)
+                    a[str(group)] = self.content.df[self.content.df[0] == group].iloc[:, -1].values
+                    a.rename(columns={a.iloc[:, -1].name: str(group)}, inplace=True)
             self.form['content'].delete(*self.form['content'].get_children())  # clear the form
             self.form['content']['columns'] = tuple(a.columns)  #ititiate tree view with new column set
             for col in a.columns:
                 self.form['content'].heading(f'{col}', text=f'{col}', anchor='center')
-                self.form['content'].column(f'{col}', stretch="yes")
+                self.form['content'].column(f'{col}', stretch=True)
             for index, row in a.iterrows():  # fill it with transposed values
                 self.form['content'].insert("", "end", values=row.to_list())
-            print(f'{x[0]*3} transforming data ')
+            print(f'{x[0] * 3} transforming data ')
         else:
             print('file mode magic ... what can be done here? report only upon errorlog?')
 
@@ -336,8 +345,9 @@ class MainWindow:
         if self.active['location'] != final_loc and final_loc:
             if self.active['mode'].get() in (2, 4):
                 final_dataset = self.content.df.transpose()  #.loc[1:,-1]
-                #final_dataset.to_csv(final_loc, encoding='cp1252', header=False, index=True, line_terminator='\n', mode='w')
-                final_dataset.to_csv(final_loc.name, encoding='utf-8', header=False, index=True, line_terminator='\n', mode='w')
+                # final_dataset.to_csv(final_loc, encoding='cp1252', header=False, index=True, line_terminator='\n', mode='w')
+                final_dataset.to_csv(final_loc.name, encoding='utf-8', header=False, index=True, line_terminator='\n',
+                                     mode='w')
             else:
                 final_dict = {}
                 helper_dict = {}
@@ -348,8 +358,8 @@ class MainWindow:
                     for i, val in enumerate(self.form['content'].item(child)['values']):
                         final_dict[helper_dict[i]].append(val)
                 ResultSet(final_dict, direct=True).write_csv(loc=final_loc, fn=self.active['location'])
-                    # self.content.dic.merge(final_loc)
-                    # self.content.dic.export(final_loc)
+                # self.content.dic.merge(final_loc)
+                # self.content.dic.export(final_loc)
 
     def quit(self):
         self.master.destroy()
@@ -376,6 +386,7 @@ def data_collector():
     root['bg'] = '#49A'
     root.mainloop()
 
+
 if __name__ == '__main__':
-    #os.environ['NLS_LANG'] = '.AL32UTF8'
+    # os.environ['NLS_LANG'] = '.AL32UTF8'
     data_collector()
