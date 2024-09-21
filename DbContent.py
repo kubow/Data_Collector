@@ -8,7 +8,6 @@ try:
 except ImportError:
     print('!!! pandas library not found, cannot read csv and excel')
 
-
 # import sqlite3
 # import matplotlib.pyplot as mplt
 
@@ -20,7 +19,7 @@ class ResultSet:
     %header: indicator for header loading
     %direct: indicator for actual dataset usage
     """
-    def __init__(self, content='', sep=',', header=True, direct=False):
+    def __init__(self, content='', sep=',', header=True, direct=False, enc='utf-8'):
 
         if direct:  # has its own self.time_stamp coming from parent
             if isinstance(content, dict):
@@ -32,7 +31,7 @@ class ResultSet:
                 print(f'The loaded content is a type: {type(content)}, need to specify dataframe?')
         elif content:
             self.time_stamp = ''  # time stamp needs to be nulled
-            file_name = os.path.basename(content)  # primary check if timestamp in name of the file
+            file_name = os.path.basename(content)  # check if time value is in name of the file
             if any(chr.isdigit() for chr in file_name.split('.')[0]):
                 # TODO: SQL Anywhere specific ? Must be more conditions
                 self.time_stamp = build_ts(file_name.split('.')[0])
@@ -44,12 +43,13 @@ class ResultSet:
             elif '.xls' in content:
                 self.df = read_excel(content)
             elif '.csv' in content:
-                self.df = read_csv(content, sep=sep, header=0, na_filter=False)
+                # self.df = read_csv(content, sep=sep, header=0, na_filter=False, encoding=enc)
+                self.df = read_csv(content, sep=sep, header=0, na_filter=False, encoding='unicode_escape', engine='python')
             else:
-                self.df = read_fwf(content)
+                self.df = read_fwf(content, encoding=enc)
             print(f'... opened file {file_name} from {os.path.abspath(content)} (size: {os.path.getsize(content)} kb)')
         else:
-            print('please provide a path to result set file')
+            print('What would you like to do else?')
 
     def plot(self, index_row):
         if isinstance(self.df, DataFrame) and isinstance(index_row, int):
@@ -61,8 +61,9 @@ class ResultSet:
                 self.df.tail(3).head(1).to_csv(csv, mode='w', encoding='utf-8', header=False)
             self.df.tail(1).to_csv(csv, mode='a', encoding='utf-8', header=False)
         else:
-            e = os.path.join(os.path.dirname(__file__), 'export.csv')
-            self.df.to_csv(e, mode='w', encoding='utf-8')
+            c = os.path.join(os.path.dirname(__file__), 'export.csv')
+            self.df.to_csv(c, mode='w', encoding='utf-8')
+        print(f'--- file {c} written')
 
 
 class ErrLog:
@@ -120,7 +121,7 @@ class ErrLog:
                         if backup and backup == timestamp:
                             self.dic[timestamp] += '\n'+' '.join(line[2:])
                         else:
-                            self.dic[timestamp] = ' '.join(line[2:]) 
+                            self.dic[timestamp] = ' '.join(line[2:])
         except IndexError:
             self.dic[timestamp] += '\n'+' '.join(line)  # this case appending to content
         except UnicodeDecodeError:
@@ -139,7 +140,7 @@ class ErrLog:
                 self.process_lines(file, self.options["enc"]["avail"][2])
             else:
                 print('no other values for encoding')
-        except:
+        except Exception:
             print(sys.exc_info()[0])  # exception add out of 
         finally:
             if timestamp:
@@ -211,7 +212,7 @@ class SysMon:
                                 self.counter['items'] = 1
                                 for stat_value, data_value in stat_detail.items():
                                     if self.counter['items'] > 1:
-                                        header.append(section + ' ' + statistic + ' ' + stat_value)
+                                        header.append(f'{section} {statistic} {stat_value}')
                                     self.counter['items'] += 1
                     self.counter['columns'] = len(header)
                     cswrt.writerow(header)
@@ -224,7 +225,7 @@ class SysMon:
                                 if self.counter['items'] > 1:
                                     data.append(data_value.replace('% ', '').replace('.', ','))
                                 self.counter['items'] += 1
-                print(str(len(data)), 'items in row / vs', str(self.counter['columns']), 'column names')
+                print(len(data), 'items in row / vs', self.counter['columns'], 'column names')
                 cswrt.writerow(data)
         elif file_type == 'json':
             # this is desired structure: [{'date': 'YYYY-mm-dd HH:MM:SS', 'var1': 'var1', ...}, {...}, ...]
@@ -342,6 +343,7 @@ def build_ts(ts_value=None):
     """build timestamp value from a given string ts_value
     expects > < >_< or no date time separator
     TODO: watch for more exotic separators
+    TODO: watch also for various date/time formats
     """ 
     try:
         ts_format = ''
@@ -351,23 +353,23 @@ def build_ts(ts_value=None):
             sep = '_'
         else:
             print('what is divider between date and time here?', ts_value)
-        if sep=='_' and not isinstance(ts_value.split(sep)[0], int):
-            ts_value = sep.join(ts_value.split(sep)[1:])  # cut-off forst part of string
-        med = ts_value.split(sep)
+            sep = ''
+        if sep in ['_', ' ']:   # leave only integer values
+            med = [part for part in ts_value.split(sep) if cast(part)]
         if len(med) == 2:
+            ts_value = sep.join(med)
             ts_format = sep.join((fmt_ts(f_val=med[0]), fmt_ts(f_type='time', f_val=med[1])))
+        elif len(med) == 4:  # 1. year 2. month 3.day 4. timestamp
+            ts_value = '/'.join(med[:-1]) + sep + med[-1]
+            ts_format = sep.join((fmt_ts(f_val='/'.join(med[:-1])), fmt_ts(f_type='time', f_val=med[-1]))) 
         elif len(med) > 2:
             ts_value = sep.join(med.split(sep)[-2:])
-            ts_format = sep.join((fmt_ts(f_val=med[0]), fmt_ts(f_type='time', f_val=med[1]))) 
-    except:
+            ts_format = sep.join((fmt_ts(f_val=med[0]), fmt_ts(f_type='time', f_val=med[1])))
+    except Exception:
         # print(sys.exc_info()[1])
         return ts_value
     finally:
-        if ts_format:
-            return datetime.strptime(ts_value, ts_format)
-        else:
-            return ts_value
-
+        return datetime.strptime(ts_value, ts_format) if ts_format else ts_value
 
 def fmt_ts(f_type='date', f_val=''):
     """get format of a time/date given by:
@@ -401,3 +403,17 @@ def fmt_ts(f_type='date', f_val=''):
         elif len(f_val) == 2:
             return '%H:%M'
 
+def cast(this, ctype='int'):
+    '''Try to cast value
+    %this that can be any value
+    %ctype with specific type 
+    (by default integer)'''
+    try:
+        if ctype == 'int':
+            return int(this)
+        elif ctype == 'float':
+            return float(this)
+        else:
+            return this
+    except ValueError:
+        return False

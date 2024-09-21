@@ -27,7 +27,7 @@ except ImportError:
 
 from DbContent import SysMon, ErrLog, ResultSet, contains_vals, move_record
 # from ToolTip import ToolTip
-
+x = '~.-:'  # special string for decorating
 
 class MainWindow:
     def __init__(self, master):
@@ -102,12 +102,12 @@ class MainWindow:
         else:
             self.active['location'] = dialog.askopenfilename()
         if self.active['location']:
-            self.await_load = True
+            self.await_load = True  # magic flag
         elif backup:
             self.active['location'] = backup  # reverting to previous value
         self.refresh()            
 
-    def refresh(self):
+    def refresh(self):  # after every change in layout
         if not self.await_load:
             return
         self.form['location']['text'] = f'Location : {self.active["location"]}'
@@ -276,8 +276,11 @@ class MainWindow:
         if self.active['mode'].get() in (2, 4):  # folder mode , plotting
             if self.form['content'].selection():
                 if can_graph:
-                    sel = int(self.form['content'].selection()[0][1:], 16)  
-                    magic = self.content.df.iloc[sel -1].to_frame()
+                    # TODO: this is not working....
+                    #sel = int(self.form['content'].selection()[0][1:], 16)  
+                    sel = self.form['content'].item(self.form['content'].selection()[0])['values'][0]
+                    #magic = self.content.df.iloc[sel -1].to_frame()
+                    magic = ResultSet(sel).df
                     serie_name = magic.iloc[0][magic.columns[-1]]
                     magic = magic[1:].astype('float')
                     #magic.astype(float)
@@ -298,22 +301,55 @@ class MainWindow:
                     plt.show()  #x_compat=True
             else:
                 print('please select a row')
+        elif self.active['mode'].get() == 3:
+            for i, group in enumerate(self.content.df[0].unique()):  # transforming it to a CUBE by first field
+                if i < 1:
+                    a = self.content.df[self.content.df[0]==group].iloc[:,1:]
+                    c = {
+                        a.iloc[:,-1].name:str(group),
+                        a.iloc[:,-2].name:'description',
+                        a.iloc[:,1].name:'metric',
+                        a.iloc[:,0].name:'id'
+                    }
+                    a.rename(columns=c, inplace=True)
+                else:
+                    a[str(group)]=self.content.df[self.content.df[0]==group].iloc[:,-1].values
+                    a.rename(columns={a.iloc[:,-1].name:str(group)}, inplace=True)
+            self.form['content'].delete(*self.form['content'].get_children())  # clear the form
+            self.form['content']['columns'] = tuple(a.columns)  #ititiate tree view with new column set
+            for col in a.columns:
+                self.form['content'].heading(f'{col}', text=f'{col}', anchor='center')
+                self.form['content'].column(f'{col}', stretch="yes")
+            for index, row in a.iterrows():  # fill it with transposed values
+                self.form['content'].insert("", "end", values=row.to_list())
+            print(f'{x[0]*3} transforming data ')
         else:
             print('file mode magic ... what can be done here? report only upon errorlog?')
 
     def save(self):
-        if contains_vals(self.content):
-            if self.active['mode'].get() in (0, 1, 3):  # file mode, export to directory
-                final_loc = dialog.askdirectory()
+        if not contains_vals(self.content):
+            return
+        if self.active['mode'].get() in (0, 1, 3):  # file mode, export to directory
+            final_loc = dialog.askdirectory()
+        else:
+            final_loc = dialog.asksaveasfile(mode='w', defaultextension=".csv")
+        if self.active['location'] != final_loc and final_loc:
+            if self.active['mode'].get() in (2, 4):
+                final_dataset = self.content.df.transpose()  #.loc[1:,-1]
+                #final_dataset.to_csv(final_loc, encoding='cp1252', header=False, index=True, line_terminator='\n', mode='w')
+                final_dataset.to_csv(final_loc.name, encoding='utf-8', header=False, index=True, line_terminator='\n', mode='w')
             else:
-                final_loc = dialog.asksaveasfile(mode='w', defaultextension=".csv")
-            if self.active['location'] != final_loc and final_loc:
-                if self.active['mode'].get() in (2, 4):
-                    final_dataset = self.content.transpose()  #.loc[1:,-1]
-                    final_dataset.to_csv(final_loc, encoding='utf-8', header=False, index=True, line_terminator='\n', mode='w')
-                else:
-                    self.content.dic.merge(final_loc)
-                    #self.content.dic.export(final_loc)
+                final_dict = {}
+                helper_dict = {}
+                for i, col in enumerate(self.form['content']['columns']):
+                    final_dict[col] = []
+                    helper_dict[i] = col
+                for child in self.form['content'].get_children():
+                    for i, val in enumerate(self.form['content'].item(child)['values']):
+                        final_dict[helper_dict[i]].append(val)
+                ResultSet(final_dict, direct=True).write_csv(loc=final_loc, fn=self.active['location'])
+                    # self.content.dic.merge(final_loc)
+                    # self.content.dic.export(final_loc)
 
     def quit(self):
         self.master.destroy()
@@ -341,4 +377,5 @@ def data_collector():
     root.mainloop()
 
 if __name__ == '__main__':
+    #os.environ['NLS_LANG'] = '.AL32UTF8'
     data_collector()
