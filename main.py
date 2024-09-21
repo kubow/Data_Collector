@@ -207,11 +207,13 @@ class MainWindow:
         self.active['apply'] = string
         self.form['content'].delete(*self.form['content'].get_children())  # clear the widget
             # prepare content (stored in variable f)
-        if self.active['mode'].get() in (4,2):
+        if self.active['mode'].get() == 4:
             # TODO: dynamicaly load description - name may differ
             f = self.content.df[self.content.df['description'].str.lower().str.contains(string)]
         elif self.active['mode'].get() == 3:
             f = self.content if any(self.content.df.columns) in string else self.content.df
+        elif self.active['mode'].get() == 2:
+            f = self.content
         elif self.active['mode'].get() == 1:
             f = self.content
         elif self.active['mode'].get() == 0:
@@ -220,9 +222,13 @@ class MainWindow:
         if isinstance(f, dict):
             for timestamp, row in f.items():
                 self.form['content'].insert("", "end", values=[timestamp, '\n'.join(wrap(row, 150))])
-        else:
+        elif len(string) < 1:
             for index, row in f.iterrows():
                 self.form['content'].insert("", "end", values=row.to_list())
+        else:
+            for index, row in f.iterrows():
+                if string in row:
+                    self.form['content'].insert("", "end", values=row.to_list())
         # do a sum-up
         self.active["records"] = len(f)
         self.active['stats']['text'] = f'Total : {self.active["records"]} records'
@@ -245,17 +251,12 @@ class MainWindow:
     def prev(self):
         if contains_vals(self.content):
             self.active['index'] = move_record(self.content, self.active['index'], up=False)
-        else:
-            if self.active['index'] > 1:
-                self.active['index'] -= 1
+        elif self.active['index'] > 1:
+            self.active['index'] -= 1
 
     def next(self):
-        if self.content:
-            if not self.content.empty:
-                self.active['index'] += 1
-        elif self.content:
-            if self.active['index'] < len(self.content.dic):
-                self.active['index'] += 1
+        if self.content and not self.content.empty:
+            self.active['index'] += 1
 
     def control(self):
         if (self.contacts_list.curselection()[0]+1) < len(self.content.dic):

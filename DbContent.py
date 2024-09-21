@@ -55,16 +55,11 @@ class ResultSet:
         if isinstance(self.df, DataFrame) and isinstance(index_row, int):
             self.df.plot(x=self.df.iloc[0], y=self.df.iloc[index_row])
 
-    def write_csv(self, loc='', fn=''):
-        if loc and fn:
-            c = os.path.join(loc, os.path.basename(fn))
-            if os.path.isfile(c):  # do not append header in case file exist
-                self.df.tail(1).to_csv(c, mode='a', encoding='utf-8', header=False)
-            elif len(self.df) < 5:
-                self.df.tail(3).head(1).to_csv(c, mode='w', encoding='utf-8', header=False)
-                self.df.tail(1).to_csv(c, mode='a', encoding='utf-8', header=False)
-            else:
-                self.df.transpose().to_csv(c, mode='w', encoding='utf-8', header=True)
+    def write_csv(self, csv=''):
+        if csv:
+            if not os.path.isfile(csv):
+                self.df.tail(3).head(1).to_csv(csv, mode='w', encoding='utf-8', header=False)
+            self.df.tail(1).to_csv(csv, mode='a', encoding='utf-8', header=False)
         else:
             c = os.path.join(os.path.dirname(__file__), 'export.csv')
             self.df.to_csv(c, mode='w', encoding='utf-8')
@@ -399,16 +394,14 @@ def fmt_ts(f_type='date', f_val=''):
         else:
             return '%Y%m%d'
     elif f_type == 'time':
-        if ':' in f_val:
-            f_val = f_val.split(':')
-            if len(f_val) == 3:
-                return '%H:%M:%S'
-            elif len(f_val) == 2:
-                return '%H:%M'
-        elif len(f_val) == 6:
-            return '%H%M%S'
-        elif len(f_val) == 4:
+        if ':' not in f_val:
             return '%H%M'
+
+        f_val = f_val.split(':')
+        if len(f_val) == 3:
+            return '%H:%M:%S'
+        elif len(f_val) == 2:
+            return '%H:%M'
 
 def cast(this, ctype='int'):
     '''Try to cast value
